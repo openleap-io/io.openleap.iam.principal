@@ -31,3 +31,4 @@ replay_pid*
 .idea/contentModel.xml
 .idea/aws.xml
 .idea/copilot.data.migration.ask2agent.xml
+.idea/jarRepositories.xml

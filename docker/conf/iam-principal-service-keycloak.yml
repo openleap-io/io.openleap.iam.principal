@@ -1,0 +1,32 @@
+server:
+  port: 8080
+spring:
+  security:
+    oauth2:
+      client:
+        provider:
+          openleap:
+            issuer-uri: http://keycloak-web:8090/realms/openleap-realm
+            token-uri: http://keycloak-web:8090/realms/openleap-realm/protocol/openid-connect/token
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://keycloak-web:8090/realms/openleap-realm/protocol/openid-connect/certs
+
+oleap:
+  client:
+    registration:
+      registration-endpoint: http://keycloak-web:8090/realms/openleap-realm/clients-registrations/default
+      registration-username:  register-client
+      registration-password: 8asUuNkpbGFUBzTc81SRneVxCBlUegBD
+      token-endpoint: http://keycloak-web:8090/realms/openleap-realm/protocol/openid-connect/token
+      registration-scopes: client.create
+      grant-types: client_credentials
+      base-url: http://127.0.0.1:8086
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://user:sa@localhost:8761/eureka/
+  instance:
+    instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
+    hostname: openleap-registry

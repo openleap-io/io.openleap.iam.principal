@@ -1,0 +1,52 @@
+version: '3'
+services:
+  keycloak-web:
+    volumes:
+      - ./import/keycloak:/opt/keycloak/data/import
+    image: quay.io/keycloak/keycloak:26.1.0
+    healthcheck:
+      test: [ "CMD-SHELL", "exec 3<> /dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nhost: http://localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; if [ $? -eq 0 ]; then echo 'Healthcheck Successful'; exit 0; else echo 'Healthcheck Failed'; exit 1; fi;" ]
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_LOG_LEVEL: info
+      KC_METRICS_ENABLED: 'true'
+      KC_HEALTH_ENABLED: 'true'
+      KC_HTTP_PORT: 8090
+    command: start-dev --import-realm
+    ports:
+      - '8090:8090'
+    networks:
+      - openleap
+  openleap-registry:
+    image: docker.io/openleap/io.openleap.registry:latest
+    pull_policy: always
+    ports:
+      - "8761:8761"
+    environment:
+      SPRING_PROFILES_ACTIVE: keycloak
+    networks:
+      - openleap
+  openleap-config:
+    image: docker.io/openleap/io.openleap.config:latest
+    pull_policy: always
+    ports:
+      - "8099:8099"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --quiet --tries=1 --spider http://openleap-config:8099/actuator/health || exit 1" ]
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - openleap-registry
+    volumes:
+      - ./conf:/application/BOOT-INF/classes/config
+    environment:
+      REGISTRY_HOSTNAME: openleap-registry
+    networks:
+      - openleap
+networks:
+  openleap:
