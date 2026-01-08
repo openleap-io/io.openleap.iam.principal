@@ -1,15 +1,5 @@
--- ============================================================================
--- IAM Principal Service - Initial Schema
--- Table-Per-Class Inheritance: Each concrete principal type has its own table
--- ============================================================================
-
--- Schema creation
 CREATE SCHEMA IF NOT EXISTS iam_principal;
 
--- ============================================================================
--- HUMAN PRINCIPALS TABLE (Concrete Subclass)
--- Contains: All inherited Principal attributes + Human-specific attributes
--- ============================================================================
 CREATE TABLE iam_principal.human_principals (
     -- Inherited attributes from abstract Principal
     principal_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -39,7 +29,8 @@ CREATE TABLE iam_principal.human_principals (
     preferences JSONB,
     
     -- Constraints
-    CONSTRAINT fk_human_primary_tenant FOREIGN KEY (primary_tenant_id) REFERENCES iam_tenant.tenants(tenant_id),
+    -- Note: Foreign key to iam_tenant.tenants is not created here as it's a cross-service reference.
+    -- Referential integrity is enforced at the application layer.
     CONSTRAINT chk_human_context_tags_size CHECK (pg_column_size(context_tags) <= 10240)
 );
 
@@ -50,10 +41,7 @@ CREATE INDEX idx_human_principals_context_tags ON iam_principal.human_principals
 CREATE INDEX idx_human_principals_language ON iam_principal.human_principals(language);
 CREATE INDEX idx_human_principals_email ON iam_principal.human_principals(email);
 
--- ============================================================================
--- SERVICE PRINCIPALS TABLE (Concrete Subclass)
--- Contains: All inherited Principal attributes + Service-specific attributes
--- ============================================================================
+
 CREATE TABLE iam_principal.service_principals (
     -- Inherited attributes from abstract Principal
     principal_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -77,7 +65,8 @@ CREATE TABLE iam_principal.service_principals (
     rotated_at TIMESTAMP,
     
     -- Constraints
-    CONSTRAINT fk_service_primary_tenant FOREIGN KEY (primary_tenant_id) REFERENCES iam_tenant.tenants(tenant_id),
+    -- Note: Foreign key to iam_tenant.tenants is not created here as it's a cross-service reference.
+    -- Referential integrity is enforced at the application layer.
     CONSTRAINT chk_service_context_tags_size CHECK (pg_column_size(context_tags) <= 10240),
     CONSTRAINT chk_service_rotation_date_future CHECK (credential_rotation_date >= CURRENT_DATE)
 );
@@ -86,13 +75,10 @@ CREATE INDEX idx_service_principals_status ON iam_principal.service_principals(s
 CREATE INDEX idx_service_principals_tenant ON iam_principal.service_principals(primary_tenant_id);
 CREATE INDEX idx_service_principals_sync_status ON iam_principal.service_principals(sync_status) WHERE sync_status != 'SYNCED';
 CREATE INDEX idx_service_principals_context_tags ON iam_principal.service_principals USING GIN (context_tags);
-CREATE INDEX idx_service_principals_rotation ON iam_principal.service_principals(credential_rotation_date) 
-    WHERE credential_rotation_date <= CURRENT_DATE + INTERVAL '7 days';
+-- Index for credential rotation queries (application layer filters by date)
+CREATE INDEX idx_service_principals_rotation ON iam_principal.service_principals(credential_rotation_date);
 
--- ============================================================================
--- SYSTEM PRINCIPALS TABLE (Concrete Subclass)
--- Contains: All inherited Principal attributes + System-specific attributes
--- ============================================================================
+
 CREATE TABLE iam_principal.system_principals (
     -- Inherited attributes from abstract Principal
     principal_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -115,7 +101,8 @@ CREATE TABLE iam_principal.system_principals (
     allowed_operations TEXT[],
     
     -- Constraints
-    CONSTRAINT fk_system_primary_tenant FOREIGN KEY (primary_tenant_id) REFERENCES iam_tenant.tenants(tenant_id),
+    -- Note: Foreign key to iam_tenant.tenants is not created here as it's a cross-service reference.
+    -- Referential integrity is enforced at the application layer.
     CONSTRAINT chk_system_context_tags_size CHECK (pg_column_size(context_tags) <= 10240)
 );
 
@@ -125,10 +112,7 @@ CREATE INDEX idx_system_principals_sync_status ON iam_principal.system_principal
 CREATE INDEX idx_system_principals_context_tags ON iam_principal.system_principals USING GIN (context_tags);
 CREATE INDEX idx_system_principals_integration_type ON iam_principal.system_principals(integration_type);
 
--- ============================================================================
--- DEVICE PRINCIPALS TABLE (Concrete Subclass)
--- Contains: All inherited Principal attributes + Device-specific attributes
--- ============================================================================
+
 CREATE TABLE iam_principal.device_principals (
     -- Inherited attributes from abstract Principal
     principal_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -155,7 +139,8 @@ CREATE TABLE iam_principal.device_principals (
     location_info JSONB,
     
     -- Constraints
-    CONSTRAINT fk_device_primary_tenant FOREIGN KEY (primary_tenant_id) REFERENCES iam_tenant.tenants(tenant_id),
+    -- Note: Foreign key to iam_tenant.tenants is not created here as it's a cross-service reference.
+    -- Referential integrity is enforced at the application layer.
     CONSTRAINT chk_device_context_tags_size CHECK (pg_column_size(context_tags) <= 10240),
     CONSTRAINT chk_device_location_info_size CHECK (pg_column_size(location_info) <= 5120)
 );
@@ -167,10 +152,7 @@ CREATE INDEX idx_device_principals_context_tags ON iam_principal.device_principa
 CREATE INDEX idx_device_principals_device_type ON iam_principal.device_principals(device_type);
 CREATE INDEX idx_device_principals_device_identifier ON iam_principal.device_principals(device_identifier);
 
--- ============================================================================
--- PRINCIPAL TENANT MEMBERSHIPS TABLE
--- Uses composite reference (principal_id + principal_type) since no shared base table
--- ============================================================================
+
 CREATE TABLE iam_principal.principal_tenant_memberships (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     principal_id UUID NOT NULL,
@@ -185,7 +167,8 @@ CREATE TABLE iam_principal.principal_tenant_memberships (
     
     -- Note: No FK to principal tables because we use composite reference pattern
     -- Application layer enforces referential integrity via principal_type discriminator
-    CONSTRAINT fk_membership_tenant FOREIGN KEY (tenant_id) REFERENCES iam_tenant.tenants(tenant_id) ON DELETE CASCADE,
+    -- Note: Foreign key to iam_tenant.tenants is not created here as it's a cross-service reference.
+    -- Referential integrity is enforced at the application layer.
     CONSTRAINT chk_valid_period CHECK (valid_to IS NULL OR valid_from <= valid_to),
     CONSTRAINT uk_principal_tenant_active UNIQUE (principal_id, principal_type, tenant_id, status)
 );
@@ -194,11 +177,6 @@ CREATE INDEX idx_memberships_principal ON iam_principal.principal_tenant_members
 CREATE INDEX idx_memberships_tenant ON iam_principal.principal_tenant_memberships(tenant_id);
 CREATE INDEX idx_memberships_status ON iam_principal.principal_tenant_memberships(status);
 CREATE INDEX idx_memberships_valid_to ON iam_principal.principal_tenant_memberships(valid_to) WHERE valid_to IS NOT NULL;
-
--- ============================================================================
--- GLOBAL USERNAME UNIQUENESS (across all principal tables)
--- Implemented via a view for application-layer checks
--- ============================================================================
 
 -- View to check global username uniqueness across all principal tables
 CREATE OR REPLACE VIEW iam_principal.all_principals_usernames AS
@@ -210,9 +188,7 @@ SELECT principal_id, username, 'SYSTEM' as principal_type FROM iam_principal.sys
 UNION ALL
 SELECT principal_id, username, 'DEVICE' as principal_type FROM iam_principal.device_principals;
 
--- ============================================================================
--- TRIGGERS: Update updated_at timestamp
--- ============================================================================
+
 CREATE OR REPLACE FUNCTION iam_principal.update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -241,9 +217,6 @@ CREATE TRIGGER trigger_device_principals_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION iam_principal.update_updated_at_column();
 
--- ============================================================================
--- OUTBOX TABLE (for event publishing)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS outbox (
     pk BIGSERIAL PRIMARY KEY,
     uuid UUID,

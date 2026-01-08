@@ -9,7 +9,7 @@
 > - **Domain:** `principal` (Principal Management)
 > - **Service ID:** `iam-principal-svc`
 > - **basePackage:** `io.openleap.iam.principal`
-> - **OpenLeap Starter Version:** `1.2.1-SNAPSHOT`
+> - **OpenLeap Starter Version:** `1.2.6-SNAPSHOT`
 > - **Port:** `8080`
 > - **Change Summary:** Added DevicePrincipal, membership events, cross-tenant use cases, basePackage; Clarified abstract Principal pattern
 
