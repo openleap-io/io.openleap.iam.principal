@@ -32,3 +32,6 @@ replay_pid*
 .idea/aws.xml
 .idea/copilot.data.migration.ask2agent.xml
 .idea/jarRepositories.xml
+/.vscode/settings.json
+.idea/sqldialects.xml
+/docker/data/**
