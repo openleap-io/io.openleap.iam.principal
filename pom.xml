@@ -73,19 +73,6 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-    <repositories>
-        <repository>
-            <id>dtp-public</id>
-            <name>Datapart Public Repository</name>
-            <url>https://nexus.datapart-factoring.de/repository/maven-public/</url>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-        </repository>
-    </repositories>
     <build>
         <plugins>
             <plugin>
