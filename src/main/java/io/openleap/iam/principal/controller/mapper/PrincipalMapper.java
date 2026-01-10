@@ -1,14 +1,18 @@
 package io.openleap.iam.principal.controller.mapper;
 
+import io.openleap.iam.principal.controller.dto.CreateDevicePrincipalRequestDto;
+import io.openleap.iam.principal.controller.dto.CreateDevicePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateServicePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateServicePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateSystemPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateSystemPrincipalResponseDto;
+import io.openleap.iam.principal.domain.dto.CreateDevicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateHumanPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateServicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateSystemPrincipalCommand;
+import io.openleap.iam.principal.domain.dto.DevicePrincipalCreated;
 import io.openleap.iam.principal.domain.dto.HumanPrincipalCreated;
 import io.openleap.iam.principal.domain.dto.ServicePrincipalCreated;
 import io.openleap.iam.principal.domain.dto.SystemPrincipalCreated;
@@ -89,6 +93,35 @@ public interface PrincipalMapper {
         systemInfo.setCertificateThumbprint(created.certificateThumbprint());
         systemInfo.setAllowedOperations(created.allowedOperations());
         dto.setSystemPrincipal(systemInfo);
+        
+        return dto;
+    }
+    
+    /**
+     * Maps controller request DTO to service domain command for device principal.
+     */
+    CreateDevicePrincipalCommand toCommand(CreateDevicePrincipalRequestDto dto);
+    
+    /**
+     * Maps service domain result to controller response DTO for device principal.
+     * Note: This requires custom implementation due to nested DevicePrincipalInfo object.
+     */
+    default CreateDevicePrincipalResponseDto toResponseDto(DevicePrincipalCreated created) {
+        CreateDevicePrincipalResponseDto dto = new CreateDevicePrincipalResponseDto();
+        dto.setPrincipalId(created.principalId());
+        dto.setPrincipalType("DEVICE");
+        dto.setUsername(created.username());
+        dto.setStatus("ACTIVE");
+        dto.setCreatedAt(Instant.now().toString());
+        
+        // Create nested DevicePrincipalInfo
+        CreateDevicePrincipalResponseDto.DevicePrincipalInfo deviceInfo = 
+            new CreateDevicePrincipalResponseDto.DevicePrincipalInfo();
+        deviceInfo.setDeviceIdentifier(created.deviceIdentifier());
+        deviceInfo.setDeviceType(created.deviceType() != null ? created.deviceType().name() : null);
+        deviceInfo.setManufacturer(created.manufacturer());
+        deviceInfo.setModel(created.model());
+        dto.setDevicePrincipal(deviceInfo);
         
         return dto;
     }

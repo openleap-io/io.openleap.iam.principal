@@ -55,6 +55,22 @@ public class PrincipalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
     
+    @ExceptionHandler(SystemIdentifierAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleSystemIdentifierAlreadyExists(SystemIdentifierAlreadyExistsException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "SystemIdentifierAlreadyExists");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+    
+    @ExceptionHandler(DeviceIdentifierAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleDeviceIdentifierAlreadyExists(DeviceIdentifierAlreadyExistsException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "DeviceIdentifierAlreadyExists");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+    
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, Object> body = new HashMap<>();

@@ -1083,6 +1083,7 @@
         "iam.principal:create",
         "iam.service_principal:create",
         "iam.system_principal:create",
+        "iam.device_principal:create",
         "openid",
         "profile",
         "roles",
@@ -1841,6 +1842,38 @@
       "protocolMappers": [
         {
           "id": "05bcf888-9230-4e78-b725-942523799dec",
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "multivalued": "true",
+            "userinfo.token.claim": "false",
+            "user.attribute": "foo",
+            "id.token.claim": "false",
+            "lightweight.claim": "false",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "id": "d837ba2d-ac59-435a-89c6-ca33f9698c8e",
+      "name": "iam.device_principal:create",
+      "description": "",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false",
+        "gui.order": "",
+        "consent.screen.text": ""
+      },
+      "protocolMappers": [
+        {
+          "id": "05bcf888-9230-4e78-b726-942522799dec",
           "name": "realm roles",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-usermodel-realm-role-mapper",

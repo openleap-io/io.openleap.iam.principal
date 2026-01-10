@@ -23,6 +23,7 @@ public class SecurityConfig {
                                         .requestMatchers("/api/v1/iam/principals").hasAuthority("ROLE_iam.principal:create")
                                         .requestMatchers("/api/v1/iam/principals/service").hasAuthority("ROLE_iam.service_principal:create")
                                         .requestMatchers("/api/v1/iam/principals/system").hasAuthority("ROLE_iam.system_principal:create")
+                                        .requestMatchers("/api/v1/iam/principals/device").hasAuthority("ROLE_iam.device_principal:create")
                                         )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
                         jwt.jwtAuthenticationConverter(customJwtAuthenticationConverter())));
