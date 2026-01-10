@@ -35,3 +35,4 @@ replay_pid*
 /.vscode/settings.json
 .idea/sqldialects.xml
 /docker/data/**
+/.idea/data_source_mapping.xml

@@ -7,14 +7,14 @@
       <option name="url" value="https://oss.sonatype.org/content/repositories/snapshots" />
     </remote-repository>
     <remote-repository>
-      <option name="id" value="dtp-public" />
-      <option name="name" value="Datapart Public Repository" />
-      <option name="url" value="https://nexus.datapart-factoring.de/repository/maven-public/" />
-    </remote-repository>
-    <remote-repository>
       <option name="id" value="central" />
       <option name="name" value="Central Repository" />
       <option name="url" value="https://repo.maven.apache.org/maven2" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="dtp-public" />
+      <option name="name" value="Datapart Public Repository" />
+      <option name="url" value="https://nexus.datapart-factoring.de/repository/maven-public/" />
     </remote-repository>
     <remote-repository>
       <option name="id" value="central" />

@@ -16,11 +16,12 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain iamPrincipalFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher("/iam/principal/**")
+        http.securityMatcher("/api/v1/iam/principals/**")
                 .authorizeHttpRequests(
                         authorize ->
                                 authorize
-                                        .requestMatchers("/iam/principal/**").hasAuthority("ROLE_iam.principal.read"))
+                                        .requestMatchers("/api/v1/iam/principals").hasAuthority("ROLE_iam.principal:create")
+                                        .requestMatchers("/api/v1/iam/principals/**").hasAuthority("ROLE_iam.principal.read"))
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
                         jwt.jwtAuthenticationConverter(customJwtAuthenticationConverter())));
 

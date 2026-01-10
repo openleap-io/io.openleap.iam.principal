@@ -442,7 +442,7 @@
           "attributes": {}
         }
       ],
-      "datapart-document-management": [
+      "iam-principal": [
         {
           "id": "b9da1c5b-5de5-4331-8f50-bb484c592e68",
           "name": "uma_protection",
@@ -608,12 +608,12 @@
     },
     {
       "id": "05dd20aa-b6a9-4f5b-be0e-600abb46c556",
-      "username": "service-account-datapart-document-management",
+      "username": "service-account-iam-principal",
       "emailVerified": false,
       "createdTimestamp": 1757179198586,
       "enabled": true,
       "totp": false,
-      "serviceAccountClientId": "datapart-document-management",
+      "serviceAccountClientId": "iam-principal",
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
@@ -925,12 +925,11 @@
         "web-origins",
         "service_account",
         "acr",
-        "dm_read",
+        "iam.principal:create",
         "openid",
         "profile",
         "roles",
         "client.create",
-        "template.read",
         "report-service",
         "basic",
         "email"
@@ -944,8 +943,8 @@
     },
     {
       "id": "503d92bc-c64d-4bad-9765-be6c5b6ea1fd",
-      "clientId": "datapart-document-management",
-      "name": "datapart-document-management",
+      "clientId": "iam-principal",
+      "name": "iam-principal",
       "description": "",
       "rootUrl": "",
       "adminUrl": "",
@@ -990,7 +989,7 @@
         "web-origins",
         "service_account",
         "acr",
-        "dm_read",
+        "iam.principal:create",
         "openid",
         "profile",
         "roles",
@@ -1673,7 +1672,7 @@
     },
     {
       "id": "d837ba2d-ac59-435a-89c6-ca33f9698c5e",
-      "name": "dm_read",
+      "name": "iam.principal:create",
       "description": "",
       "protocol": "openid-connect",
       "attributes": {
@@ -1702,18 +1701,6 @@
           }
         }
       ]
-    },
-    {
-      "id": "21571ed6-90f8-446e-8e3a-5ae1e7c726f3",
-      "name": "template.read",
-      "description": "",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false",
-        "gui.order": "",
-        "consent.screen.text": ""
-      }
     },
     {
       "id": "36bad2a5-037b-421d-86d8-67c3fcd90514",
@@ -1969,8 +1956,7 @@
     "client.create",
     "openid",
     "report-service",
-    "dm_read",
-    "template.read"
+    "iam.principal:create"
   ],
   "defaultOptionalClientScopes": [
     "offline_access",
