@@ -13,6 +13,8 @@ public record CreateHumanPrincipalCommand(
     UUID primaryTenantId,
     Map<String, Object> contextTags,
     String displayName,
+    String firstName,
+    String lastName,
     String phone,
     String language,
     String timezone,

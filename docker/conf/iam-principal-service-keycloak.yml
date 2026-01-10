@@ -30,3 +30,11 @@ eureka:
   instance:
     instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
     hostname: openleap-registry
+
+keycloak:
+  server-url: http://keycloak-web:8090
+  realm: openleap-realm
+  client-id: authorization
+  client-secret: your-client-secret
+  admin-username: admin
+  admin-password: admin

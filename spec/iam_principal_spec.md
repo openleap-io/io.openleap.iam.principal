@@ -226,6 +226,8 @@ erDiagram
         timestamp last_login_at
         timestamp created_at
         uuid created_by
+        varchar first_name
+        varchar last_name
         varchar display_name
         varchar phone
         varchar language
@@ -395,7 +397,9 @@ All attributes from section 2.3.1 are included in this table.
 | email_verified | Boolean | Email verified | Default false |
 | mfa_enabled | Boolean | MFA enrolled | Default false |
 | last_login_at | Timestamp | Last authentication | Nullable |
-| display_name | String | Preferred display name | Required, max 200 chars |
+| first_name | String | First name | Required, max 100 chars |
+| last_name | String | Last name | Required, max 100 chars |
+| display_name | String | Preferred display name | Optional, max 200 chars, derived from first_name + last_name if not provided |
 | phone | String | Phone number | Optional, E.164 format |
 | language | Code | Preferred language | ISO 639-1 (e.g., 'en', 'de') |
 | timezone | String | Timezone | IANA timezone (e.g., 'America/New_York') |
@@ -721,6 +725,8 @@ Content-Type: application/json
   "email": "john.doe@example.com",
   "primary_tenant_id": "tenant-123",
   "profile": {
+    "first_name": "John",
+    "last_name": "Doe",
     "display_name": "John Doe",
     "language": "en",
     "timezone": "America/New_York"
@@ -1022,6 +1028,8 @@ PATCH /api/iam/principal/v1/principals/{principalId}/profile
 Content-Type: application/json
 
 {
+  "first_name": "John",
+  "last_name": "Doe",
   "display_name": "John A. Doe",
   "phone": "+1-555-0123",
   "timezone": "Europe/Berlin",
@@ -1501,6 +1509,8 @@ GET /api/iam/principal/v1/principals/{principalId}/profile
 ```json
 {
   "principal_id": "prin-789",
+  "first_name": "John",
+  "last_name": "Doe",
   "display_name": "John Doe",
   "phone": "+1-555-0123",
   "language": "en",
@@ -2391,6 +2401,8 @@ Content-Type: application/json
   "email": "jane.smith@example.com",
   "primary_tenant_id": "tenant-456",
   "profile": {
+    "first_name": "Jane",
+    "last_name": "Smith",
     "display_name": "Jane Smith",
     "language": "de",
     "timezone": "Europe/Berlin"
@@ -2501,6 +2513,8 @@ Authorization: Bearer {jwt_token}
 Content-Type: application/json
 
 {
+  "first_name": "Jane",
+  "last_name": "Smith",
   "display_name": "Jane A. Smith",
   "phone": "+49-30-12345678",
   "timezone": "America/New_York",
@@ -2521,6 +2535,8 @@ Content-Type: application/json
 ```json
 {
   "principal_id": "prin-101",
+  "first_name": "Jane",
+  "last_name": "Smith",
   "display_name": "Jane A. Smith",
   "phone": "+49-30-12345678",
   "language": "de",
@@ -2586,7 +2602,9 @@ sequenceDiagram
 |-------|---------------|----------|-----------|-------|
 | username | ✅ | ✅ | → | Immutable |
 | email | ✅ | ✅ | → | Synced on create/update |
-| display_name | ✅ Profile | ✅ firstName/lastName | → | Split name on sync |
+| first_name | ✅ Profile | ✅ firstName | → | Direct sync |
+| last_name | ✅ Profile | ✅ lastName | → | Direct sync |
+| display_name | ✅ Profile | N/A | - | Not synced (derived field) |
 | email_verified | ✅ | ✅ | ← | Keycloak is source of truth |
 | mfa_enabled | ✅ | ✅ | ← | Keycloak is source of truth |
 | status | ✅ | ✅ enabled | ↔ | Bi-directional |
@@ -2640,6 +2658,8 @@ public class EmployeeService {
             .email(request.getEmail())
             .primaryTenantId(getTenantId())
             .profile(PrincipalProfile.builder()
+                .firstName(request.getFirstName())
+                .lastName(request.getLastName())
                 .displayName(request.getFirstName() + " " + request.getLastName())
                 .language("en")
                 .timezone("America/New_York")
@@ -2800,7 +2820,9 @@ CREATE TABLE iam_principal.human_principals (
     email_verified BOOLEAN DEFAULT FALSE,
     mfa_enabled BOOLEAN DEFAULT FALSE,
     last_login_at TIMESTAMP,
-    display_name VARCHAR(200) NOT NULL,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    display_name VARCHAR(200),
     phone VARCHAR(20),
     language VARCHAR(10),
     timezone VARCHAR(100),
@@ -3056,6 +3078,8 @@ CREATE POLICY tenant_isolation_policy ON iam_principal.principal_tenant_membersh
 | email | Confidential | Encryption at rest, tenant isolation |
 | keycloak_user_id | Internal | FK reference only |
 | api_key_hash | Restricted | SHA-256 hashed, never stored plain |
+| first_name | Internal | Tenant isolation |
+| last_name | Internal | Tenant isolation |
 | display_name | Internal | Tenant isolation |
 | phone | Confidential | Encryption at rest |
 | preferences | Internal | Tenant isolation |

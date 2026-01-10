@@ -40,7 +40,13 @@ public class HumanPrincipalEntity extends Principal {
      */
     @Column(name = "display_name", nullable = false, length = 200)
     private String displayName;
-    
+
+    @Column(name = "first_name", nullable = false, length = 200)
+    private String firstName;
+
+    @Column(name = "last_name", nullable = false, length = 200)
+    private String lastName;
+
     /**
      * Phone number (optional, E.164 format)
      */
@@ -90,7 +96,23 @@ public class HumanPrincipalEntity extends Principal {
     }
     
     // Getters and Setters
-    
+
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
+
     public String getKeycloakUserId() {
         return keycloakUserId;
     }

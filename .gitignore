@@ -37,3 +37,7 @@ replay_pid*
 /docker/data/**
 /.idea/data_source_mapping.xml
 /.idea/copilot.data.migration.agent.xml
+
+/.idea/compiler.xml
+/.idea/dataSources/**
+/.idea/dataSources.local.xml
