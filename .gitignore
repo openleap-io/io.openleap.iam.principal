@@ -37,3 +37,5 @@ replay_pid*
 /docker/data/**
 /.idea/data_source_mapping.xml
 /.idea/compiler.xml
+/.idea/dataSources/**
+/.idea/dataSources.local.xml
