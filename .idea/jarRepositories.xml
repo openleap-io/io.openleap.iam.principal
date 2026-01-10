@@ -12,11 +12,6 @@
       <option name="url" value="https://repo.maven.apache.org/maven2" />
     </remote-repository>
     <remote-repository>
-      <option name="id" value="dtp-public" />
-      <option name="name" value="Datapart Public Repository" />
-      <option name="url" value="https://nexus.datapart-factoring.de/repository/maven-public/" />
-    </remote-repository>
-    <remote-repository>
       <option name="id" value="central" />
       <option name="name" value="Maven Central repository" />
       <option name="url" value="https://repo1.maven.org/maven2" />
@@ -25,6 +20,11 @@
       <option name="id" value="jboss.community" />
       <option name="name" value="JBoss Community repository" />
       <option name="url" value="https://repository.jboss.org/nexus/content/repositories/public/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="github-openleap-starter" />
+      <option name="name" value="GitHub Packages - openleap starter" />
+      <option name="url" value="https://maven.pkg.github.com/openleap-io/io.openleap.starter" />
     </remote-repository>
   </component>
 </project>
