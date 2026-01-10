@@ -29,7 +29,7 @@ public class ServicePrincipalService {
     private final EventPublisher eventPublisher;
 
     private static final String IAM_PRINCIPAL_EXCHANGE = "iam.principal.events";
-    private static final String SERVICE_PRINCIPAL_CREATED_KEY = "iam.principal.service.created";
+    private static final String SERVICE_PRINCIPAL_CREATED_KEY = "iam.principal.service_principal.created";
     private static final String NO_DESC = "nodesc";
 
     public ServicePrincipalService(

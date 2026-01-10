@@ -4,10 +4,14 @@ import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateServicePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateServicePrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.CreateSystemPrincipalRequestDto;
+import io.openleap.iam.principal.controller.dto.CreateSystemPrincipalResponseDto;
 import io.openleap.iam.principal.domain.dto.CreateHumanPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateServicePrincipalCommand;
+import io.openleap.iam.principal.domain.dto.CreateSystemPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.HumanPrincipalCreated;
 import io.openleap.iam.principal.domain.dto.ServicePrincipalCreated;
+import io.openleap.iam.principal.domain.dto.SystemPrincipalCreated;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -56,6 +60,35 @@ public interface PrincipalMapper {
         serviceInfo.setAllowedScopes(created.allowedScopes());
         serviceInfo.setCredentialRotationDate(created.credentialRotationDate().toString());
         dto.setServicePrincipal(serviceInfo);
+        
+        return dto;
+    }
+    
+    /**
+     * Maps controller request DTO to service domain command for system principal.
+     */
+    CreateSystemPrincipalCommand toCommand(CreateSystemPrincipalRequestDto dto);
+    
+    /**
+     * Maps service domain result to controller response DTO for system principal.
+     * Note: This requires custom implementation due to nested SystemPrincipalInfo object.
+     */
+    default CreateSystemPrincipalResponseDto toResponseDto(SystemPrincipalCreated created) {
+        CreateSystemPrincipalResponseDto dto = new CreateSystemPrincipalResponseDto();
+        dto.setPrincipalId(created.principalId());
+        dto.setPrincipalType("SYSTEM");
+        dto.setUsername(created.username());
+        dto.setStatus("ACTIVE");
+        dto.setCreatedAt(Instant.now().toString());
+        
+        // Create nested SystemPrincipalInfo
+        CreateSystemPrincipalResponseDto.SystemPrincipalInfo systemInfo = 
+            new CreateSystemPrincipalResponseDto.SystemPrincipalInfo();
+        systemInfo.setSystemIdentifier(created.systemIdentifier());
+        systemInfo.setIntegrationType(created.integrationType());
+        systemInfo.setCertificateThumbprint(created.certificateThumbprint());
+        systemInfo.setAllowedOperations(created.allowedOperations());
+        dto.setSystemPrincipal(systemInfo);
         
         return dto;
     }
