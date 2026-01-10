@@ -27,7 +27,13 @@ public class CreateHumanPrincipalRequestDto {
     // Optional profile fields
     @Size(max = 200, message = "Display name must not exceed 200 characters")
     private String displayName;
-    
+
+    @Size(max = 200, message = "First name must not exceed 200 characters")
+    private String firstName;
+
+    @Size(max = 200, message = "Last name must not exceed 200 characters")
+    private String lastName;
+
     @Size(max = 20, message = "Phone must not exceed 20 characters")
     private String phone;
     
@@ -49,7 +55,24 @@ public class CreateHumanPrincipalRequestDto {
     private Map<String, Object> preferences;
     
     // Getters and Setters
-    
+
+
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
+
     public String getUsername() {
         return username;
     }

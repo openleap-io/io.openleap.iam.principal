@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="web" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
-    <option name="ACTIVE_PROFILES" value="keycloak" />
+    <option name="ACTIVE_PROFILES" value="keycloak, keycloak.web" />
     <module name="template" />
     <option name="SPRING_BOOT_MAIN_CLASS" value="io.openleap.iam.principal.PrincipalServiceApplication" />
     <extension name="coverage">

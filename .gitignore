@@ -36,3 +36,4 @@ replay_pid*
 .idea/sqldialects.xml
 /docker/data/**
 /.idea/data_source_mapping.xml
+/.idea/compiler.xml

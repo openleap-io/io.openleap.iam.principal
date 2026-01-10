@@ -20,6 +20,8 @@ CREATE TABLE iam_principal.human_principals (
     mfa_enabled BOOLEAN DEFAULT FALSE,
     last_login_at TIMESTAMP,
     display_name VARCHAR(200) NOT NULL,
+    first_name VARCHAR(200),
+    last_name VARCHAR(200),
     phone VARCHAR(20),
     language VARCHAR(10),
     timezone VARCHAR(100),
