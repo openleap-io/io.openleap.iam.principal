@@ -2,10 +2,16 @@ package io.openleap.iam.principal.controller.mapper;
 
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.CreateServicePrincipalRequestDto;
+import io.openleap.iam.principal.controller.dto.CreateServicePrincipalResponseDto;
 import io.openleap.iam.principal.domain.dto.CreateHumanPrincipalCommand;
+import io.openleap.iam.principal.domain.dto.CreateServicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.HumanPrincipalCreated;
+import io.openleap.iam.principal.domain.dto.ServicePrincipalCreated;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+
+import java.time.Instant;
 
 @Mapper(componentModel = "spring")
 public interface PrincipalMapper {
@@ -21,5 +27,37 @@ public interface PrincipalMapper {
      * Maps service domain result to controller response DTO.
      */
     CreateHumanPrincipalResponseDto toResponseDto(HumanPrincipalCreated created);
+    
+    /**
+     * Maps controller request DTO to service domain command for service principal.
+     */
+    CreateServicePrincipalCommand toCommand(CreateServicePrincipalRequestDto dto);
+    
+    /**
+     * Maps service domain result to controller response DTO for service principal.
+     * Note: This requires custom implementation due to nested ServicePrincipalInfo object.
+     */
+    default CreateServicePrincipalResponseDto toResponseDto(ServicePrincipalCreated created) {
+        CreateServicePrincipalResponseDto dto = new CreateServicePrincipalResponseDto();
+        dto.setPrincipalId(created.principalId());
+        dto.setPrincipalType("SERVICE");
+        dto.setUsername(created.username());
+        dto.setStatus("ACTIVE");
+        dto.setKeycloakClientId(created.keycloakClientId());
+        dto.setKeycloakClientSecret(created.keycloakClientSecret());
+        dto.setCreatedAt(Instant.now().toString());
+        dto.setWarning("Store these credentials securely. They cannot be retrieved again.");
+        
+        // Create nested ServicePrincipalInfo
+        CreateServicePrincipalResponseDto.ServicePrincipalInfo serviceInfo = 
+            new CreateServicePrincipalResponseDto.ServicePrincipalInfo();
+        serviceInfo.setServiceName(created.serviceName());
+        serviceInfo.setApiKey(created.apiKey());
+        serviceInfo.setAllowedScopes(created.allowedScopes());
+        serviceInfo.setCredentialRotationDate(created.credentialRotationDate().toString());
+        dto.setServicePrincipal(serviceInfo);
+        
+        return dto;
+    }
 }
 

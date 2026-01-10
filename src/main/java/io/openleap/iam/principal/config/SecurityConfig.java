@@ -21,7 +21,7 @@ public class SecurityConfig {
                         authorize ->
                                 authorize
                                         .requestMatchers("/api/v1/iam/principals").hasAuthority("ROLE_iam.principal:create")
-                                        .requestMatchers("/api/v1/iam/principals/**").hasAuthority("ROLE_iam.principal.read"))
+                                        .requestMatchers("/api/v1/iam/principals/service").hasAuthority("ROLE_iam.principal:create"))
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
                         jwt.jwtAuthenticationConverter(customJwtAuthenticationConverter())));
 

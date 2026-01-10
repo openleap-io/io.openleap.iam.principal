@@ -1,9 +1,6 @@
 package io.openleap.iam.principal.controller.exception;
 
-import io.openleap.iam.principal.exception.EmailAlreadyExistsException;
-import io.openleap.iam.principal.exception.InactivePrincipalFoundException;
-import io.openleap.iam.principal.exception.TenantNotFoundException;
-import io.openleap.iam.principal.exception.UsernameAlreadyExistsException;
+import io.openleap.iam.principal.exception.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -16,7 +13,15 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class PrincipalExceptionHandler {
-    
+
+    @ExceptionHandler(ServiceNameAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleServiceNameAlreadyExistsException(ServiceNameAlreadyExistsException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "ServiceNameAlreadyExistsException");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
     @ExceptionHandler(UsernameAlreadyExistsException.class)
     public ResponseEntity<Map<String, Object>> handleUsernameAlreadyExists(UsernameAlreadyExistsException ex) {
         Map<String, Object> body = new HashMap<>();

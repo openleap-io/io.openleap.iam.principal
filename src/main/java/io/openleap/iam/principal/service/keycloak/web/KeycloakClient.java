@@ -14,14 +14,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 @Profile("keycloak.web")
 @Component
 public class KeycloakClient {
     private static final Logger logger = LoggerFactory.getLogger(KeycloakClient.class);
-    private static final DateTimeFormatter KEYCLOAK_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
 
     private final RestTemplate restTemplate;
     private final String baseUrl;
@@ -57,6 +55,45 @@ public class KeycloakClient {
 
         return getVoidResponseEntity(userData, url);
     }
+    
+    @SuppressWarnings("unchecked")
+    public ResponseEntity<Map<String, Object>> createClient(Map<String, Object> clientData) {
+        ensureValidToken();
+        String url = String.format("/admin/realms/%s/clients", realm);
+        
+        HttpEntity<Map<String, Object>> requestEntity = getMapHttpEntity(clientData);
+        return (ResponseEntity<Map<String, Object>>) (ResponseEntity<?>) restTemplate.postForEntity(baseUrl + url, requestEntity, Map.class);
+    }
+    
+    @SuppressWarnings("unchecked")
+    public ResponseEntity<Map<String, Object>> getClientSecret(String clientId) {
+        ensureValidToken();
+        // First, get the client UUID by clientId
+        String getClientUrl = String.format("/admin/realms/%s/clients?clientId=%s", realm, clientId);
+        HttpEntity<Map<String, Object>> requestEntity = getMapHttpEntity(null);
+        ResponseEntity<Map[]> clientsResponse = restTemplate.exchange(
+            baseUrl + getClientUrl,
+            org.springframework.http.HttpMethod.GET,
+            requestEntity,
+            Map[].class
+        );
+        
+        if (clientsResponse.getBody() == null || clientsResponse.getBody().length == 0) {
+            throw new RuntimeException("Client not found: " + clientId);
+        }
+        
+        Map<String, Object> client = (Map<String, Object>) clientsResponse.getBody()[0];
+        String clientUuid = (String) client.get("id");
+        
+        // Now get the client secret
+        String secretUrl = String.format("/admin/realms/%s/clients/%s/client-secret", realm, clientUuid);
+        return (ResponseEntity<Map<String, Object>>) (ResponseEntity<?>) restTemplate.exchange(
+            baseUrl + secretUrl,
+            org.springframework.http.HttpMethod.GET,
+            requestEntity,
+            Map.class
+        );
+    }
 
     @NotNull
     private ResponseEntity<Void> getVoidResponseEntity(Map<String, Object> organizationData, String url) {
@@ -65,13 +102,14 @@ public class KeycloakClient {
         return restTemplate.postForEntity(baseUrl + url, requestEntity, Void.class);
     }
 
-    private HttpEntity<Map<String, Object>> getMapHttpEntity(Map<String, Object> organizationData) {
+    @SuppressWarnings("rawtypes")
+    private HttpEntity<Map<String, Object>> getMapHttpEntity(Map organizationData) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
 
         HttpEntity<Map<String, Object>> requestEntity =
-                new HttpEntity<>(organizationData, headers);
+                new HttpEntity<>((Map<String, Object>) organizationData, headers);
         return requestEntity;
     }
 
