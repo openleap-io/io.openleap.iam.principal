@@ -2,7 +2,7 @@ package io.openleap.iam.principal.controller;
 
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalResponseDto;
-import io.openleap.iam.principal.mapper.PrincipalMapper;
+import io.openleap.iam.principal.controller.mapper.PrincipalMapper;
 import io.openleap.iam.principal.service.HumanPrincipalService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;

@@ -1,4 +1,4 @@
-package io.openleap.iam.principal.mapper;
+package io.openleap.iam.principal.controller.mapper;
 
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalResponseDto;
