@@ -1,76 +1,38 @@
-name: 'main_build'
+name: main_build
 on:
   push:
     branches: [ main ]
 
-env:
-  MAVEN_OPTS: -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
-  REGISTRY: docker.io
-  IMAGE_NAME: openleap/io.openleap.iam-principal
-
 jobs:
   build_job:
     runs-on: ubuntu-latest
-    name: Build & Test Microservice
+    permissions:
+      contents: read
+      packages: read
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Set up JDK 21
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21 + Maven auth for GitHub Packages
         uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: '21'
-          distribution: 'temurin'
           cache: maven
-      
-      - name: Cache Maven packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2
-          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-m2-
-      
+          server-id: github-openleap-starter
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
       - name: Build
-        run: ./mvnw clean verify -Dci.buildNumber=${{ github.run_number }} -U -B ${{ env.MAVEN_OPTS }}
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Log in to Docker Hub
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.DOCKER_USER }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ github.run_number }}
-      
-      - name: Build and push Docker image
-        if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
-      
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: jar-artifact
-          path: target/*.jar
-          retention-days: 7
+        run: ./mvnw -U -B clean verify
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Image
+        run: ./scripts/docker_build
+
+      - name: Upload Image
+        run: ./scripts/docker_push
+        env:
+          DOCKER_USER: ${{ secrets.DOCKER_USER }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
