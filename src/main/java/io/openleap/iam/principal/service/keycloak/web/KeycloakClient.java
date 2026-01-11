@@ -102,6 +102,31 @@ public class KeycloakClient {
             Map.class
         );
     }
+    
+    public void updateClient(String clientId, Map<String, Object> clientData) {
+        ensureValidToken();
+        // First, get the client UUID by clientId
+        String getClientUrl = String.format("/admin/realms/%s/clients?clientId=%s", realm, clientId);
+        HttpEntity<Map<String, Object>> requestEntity = getMapHttpEntity(null);
+        ResponseEntity<Map[]> clientsResponse = restTemplate.exchange(
+            baseUrl + getClientUrl,
+            org.springframework.http.HttpMethod.GET,
+            requestEntity,
+            Map[].class
+        );
+        
+        if (clientsResponse.getBody() == null || clientsResponse.getBody().length == 0) {
+            throw new RuntimeException("Client not found: " + clientId);
+        }
+        
+        Map<String, Object> client = (Map<String, Object>) clientsResponse.getBody()[0];
+        String clientUuid = (String) client.get("id");
+        
+        // Now update the client
+        String updateUrl = String.format("/admin/realms/%s/clients/%s", realm, clientUuid);
+        HttpEntity<Map<String, Object>> updateRequestEntity = getMapHttpEntity(clientData);
+        restTemplate.put(baseUrl + updateUrl, updateRequestEntity);
+    }
 
     @NotNull
     private ResponseEntity<Void> getVoidResponseEntity(Map<String, Object> organizationData, String url) {

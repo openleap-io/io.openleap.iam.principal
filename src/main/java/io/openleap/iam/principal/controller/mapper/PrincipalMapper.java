@@ -1,5 +1,7 @@
 package io.openleap.iam.principal.controller.mapper;
 
+import io.openleap.iam.principal.controller.dto.ActivatePrincipalRequestDto;
+import io.openleap.iam.principal.controller.dto.ActivatePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateDevicePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateDevicePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
@@ -10,12 +12,14 @@ import io.openleap.iam.principal.controller.dto.CreateSystemPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateSystemPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.UpdateProfileRequestDto;
 import io.openleap.iam.principal.controller.dto.UpdateProfileResponseDto;
+import io.openleap.iam.principal.domain.dto.ActivatePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateDevicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateHumanPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateServicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateSystemPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.DevicePrincipalCreated;
 import io.openleap.iam.principal.domain.dto.HumanPrincipalCreated;
+import io.openleap.iam.principal.domain.dto.PrincipalActivated;
 import io.openleap.iam.principal.domain.dto.ProfileUpdated;
 import io.openleap.iam.principal.domain.dto.ServicePrincipalCreated;
 import io.openleap.iam.principal.domain.dto.SystemPrincipalCreated;
@@ -170,6 +174,29 @@ public interface PrincipalMapper {
         dto.setPreferences(principal.getPreferences());
         dto.setContextTags(principal.getContextTags());
         dto.setUpdatedAt(principal.getUpdatedAt() != null ? principal.getUpdatedAt().toString() : null);
+        return dto;
+    }
+    
+    /**
+     * Maps controller request DTO to service domain command for principal activation.
+     * Note: This requires custom implementation due to principalId parameter.
+     */
+    default ActivatePrincipalCommand toCommand(ActivatePrincipalRequestDto dto, java.util.UUID principalId) {
+        return new ActivatePrincipalCommand(
+                principalId,
+                dto.getVerificationToken(),
+                dto.getAdminOverride(),
+                dto.getReason()
+        );
+    }
+    
+    /**
+     * Maps service domain result to controller response DTO for principal activation.
+     */
+    default ActivatePrincipalResponseDto toResponseDto(PrincipalActivated activated) {
+        ActivatePrincipalResponseDto dto = new ActivatePrincipalResponseDto();
+        dto.setPrincipalId(activated.principalId().toString());
+        dto.setStatus("ACTIVE");
         return dto;
     }
 }

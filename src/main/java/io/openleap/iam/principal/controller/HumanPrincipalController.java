@@ -1,5 +1,7 @@
 package io.openleap.iam.principal.controller;
 
+import io.openleap.iam.principal.controller.dto.ActivatePrincipalRequestDto;
+import io.openleap.iam.principal.controller.dto.ActivatePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.UpdateProfileRequestDto;
@@ -7,6 +9,7 @@ import io.openleap.iam.principal.controller.dto.UpdateProfileResponseDto;
 import io.openleap.iam.principal.controller.mapper.PrincipalMapper;
 import io.openleap.iam.principal.repository.HumanPrincipalRepository;
 import io.openleap.iam.principal.service.HumanPrincipalService;
+import io.openleap.iam.principal.service.PrincipalService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,14 +24,17 @@ public class HumanPrincipalController {
     private final HumanPrincipalService humanPrincipalService;
     private final PrincipalMapper principalMapper;
     private final HumanPrincipalRepository humanPrincipalRepository;
+    private final PrincipalService principalService;
 
     public HumanPrincipalController(
             HumanPrincipalService humanPrincipalService,
             PrincipalMapper principalMapper,
-            HumanPrincipalRepository humanPrincipalRepository) {
+            HumanPrincipalRepository humanPrincipalRepository,
+            PrincipalService principalService) {
         this.humanPrincipalService = humanPrincipalService;
         this.principalMapper = principalMapper;
         this.humanPrincipalRepository = humanPrincipalRepository;
+        this.principalService = principalService;
     }
     
     /**
@@ -67,6 +73,25 @@ public class HumanPrincipalController {
         var principal = humanPrincipalRepository.findById(principalId)
                 .orElseThrow(() -> new RuntimeException("Principal not found: " + principalId));
         var response = principalMapper.toResponseDto(updated, principal);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Activate a principal.
+     * 
+     * Requires permission: iam.principal:activate
+     * 
+     * @param principalId the principal ID
+     * @param request the activation request DTO
+     * @return response DTO containing the principal_id and status
+     */
+    @PostMapping("/{principalId}/activate")
+    public ResponseEntity<ActivatePrincipalResponseDto> activatePrincipal(
+            @PathVariable UUID principalId,
+            @Valid @RequestBody ActivatePrincipalRequestDto request) {
+        var command = principalMapper.toCommand(request, principalId);
+        var activated = principalService.activatePrincipal(command);
+        var response = principalMapper.toResponseDto(activated);
         return ResponseEntity.ok(response);
     }
 }

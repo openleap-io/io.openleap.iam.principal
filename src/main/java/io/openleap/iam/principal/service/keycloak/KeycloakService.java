@@ -21,4 +21,12 @@ public interface KeycloakService {
      * @return the client secret (returned only once during creation)
      */
     String createClient(String clientId, java.util.List<String> allowedScopes);
+    
+    /**
+     * Updates a client in Keycloak (e.g., to enable/disable it).
+     * 
+     * @param clientId the client ID
+     * @param enabled whether the client should be enabled
+     */
+    void updateClient(String clientId, boolean enabled);
 }

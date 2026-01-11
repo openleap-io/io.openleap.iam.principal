@@ -65,6 +65,11 @@ public class KeycloakWebService implements KeycloakService {
             if (user.lastName() != null) {
                 userData.put("lastName", user.lastName());
             }
+            if (user.enabled() != null) {
+                userData.put("enabled", user.enabled());
+            }
+            // emailVerified is a primitive boolean, so always include it
+            userData.put("emailVerified", user.emailVerified());
             
             keycloakClient.updateUser(keycloakUserId, userData);
         } catch (Exception e) {
@@ -111,6 +116,19 @@ public class KeycloakWebService implements KeycloakService {
         } catch (Exception e) {
             logger.error("Error creating client", e);
             throw new RuntimeException("Failed to create client in Keycloak", e);
+        }
+    }
+    
+    @Override
+    public void updateClient(String clientId, boolean enabled) {
+        try {
+            Map<String, Object> clientData = new HashMap<>();
+            clientData.put("enabled", enabled);
+            
+            keycloakClient.updateClient(clientId, clientData);
+        } catch (Exception e) {
+            logger.error("Error updating client in Keycloak", e);
+            throw new RuntimeException("Failed to update client in Keycloak", e);
         }
     }
     
