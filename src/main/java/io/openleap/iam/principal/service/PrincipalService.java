@@ -2,10 +2,14 @@ package io.openleap.iam.principal.service;
 
 import io.openleap.iam.principal.domain.dto.ActivatePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.PrincipalActivated;
+import io.openleap.iam.principal.domain.dto.PrincipalSuspended;
+import io.openleap.iam.principal.domain.dto.SuspendPrincipalCommand;
 import io.openleap.iam.principal.domain.entity.*;
 import io.openleap.iam.principal.domain.event.PrincipalActivatedEvent;
+import io.openleap.iam.principal.domain.event.PrincipalSuspendedEvent;
 import io.openleap.iam.principal.repository.DevicePrincipalRepository;
 import io.openleap.iam.principal.repository.HumanPrincipalRepository;
+import io.openleap.iam.principal.repository.PrincipalTenantMembershipRepository;
 import io.openleap.iam.principal.repository.ServicePrincipalRepository;
 import io.openleap.iam.principal.repository.SystemPrincipalRepository;
 import io.openleap.iam.principal.service.keycloak.KeycloakService;
@@ -29,11 +33,13 @@ public class PrincipalService {
     private final ServicePrincipalRepository servicePrincipalRepository;
     private final SystemPrincipalRepository systemPrincipalRepository;
     private final DevicePrincipalRepository devicePrincipalRepository;
+    private final PrincipalTenantMembershipRepository membershipRepository;
     private final KeycloakService keycloakService;
     private final EventPublisher eventPublisher;
 
     private static final String IAM_PRINCIPAL_EXCHANGE = "iam.principal.events";
     private static final String PRINCIPAL_ACTIVATED_KEY = "iam.principal.principal.activated";
+    private static final String PRINCIPAL_SUSPENDED_KEY = "iam.principal.principal.suspended";
     private static final String NO_DESC = "nodesc";
 
     public PrincipalService(
@@ -41,12 +47,14 @@ public class PrincipalService {
             ServicePrincipalRepository servicePrincipalRepository,
             SystemPrincipalRepository systemPrincipalRepository,
             DevicePrincipalRepository devicePrincipalRepository,
+            PrincipalTenantMembershipRepository membershipRepository,
             KeycloakService keycloakService,
             EventPublisher eventPublisher) {
         this.humanPrincipalRepository = humanPrincipalRepository;
         this.servicePrincipalRepository = servicePrincipalRepository;
         this.systemPrincipalRepository = systemPrincipalRepository;
         this.devicePrincipalRepository = devicePrincipalRepository;
+        this.membershipRepository = membershipRepository;
         this.keycloakService = keycloakService;
         this.eventPublisher = eventPublisher;
     }
@@ -185,5 +193,104 @@ public class PrincipalService {
         eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
 
         return new PrincipalActivated(principal.getPrincipalId());
+    }
+
+    /**
+     * Suspends a principal.
+     * 
+     * @param command the suspension command
+     * @return the suspension result
+     */
+    @Transactional
+    public PrincipalSuspended suspendPrincipal(SuspendPrincipalCommand command) {
+        // Find principal by ID
+        Principal principal = findPrincipalById(command.principalId())
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
+
+        // Validate principal is ACTIVE
+        if (principal.getStatus() != PrincipalStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "Principal must be ACTIVE to suspend. Current status: " + principal.getStatus());
+        }
+
+        // Update status to SUSPENDED
+        principal.setStatus(PrincipalStatus.SUSPENDED);
+
+        // Save based on principal type
+        if (principal instanceof HumanPrincipalEntity) {
+            humanPrincipalRepository.save((HumanPrincipalEntity) principal);
+        } else if (principal instanceof ServicePrincipalEntity) {
+            servicePrincipalRepository.save((ServicePrincipalEntity) principal);
+        } else if (principal instanceof SystemPrincipalEntity) {
+            systemPrincipalRepository.save((SystemPrincipalEntity) principal);
+        } else if (principal instanceof DevicePrincipalEntity) {
+            devicePrincipalRepository.save((DevicePrincipalEntity) principal);
+        }
+
+        // Disable in Keycloak
+        try {
+            if (principal instanceof HumanPrincipalEntity) {
+                // Disable Keycloak user for human principals
+                HumanPrincipalEntity humanPrincipal = (HumanPrincipalEntity) principal;
+                if (humanPrincipal.getKeycloakUserId() != null && !humanPrincipal.getKeycloakUserId().isBlank()) {
+                    User keycloakUser = User.builder()
+                            .id(humanPrincipal.getPrincipalId().toString())
+                            .username(humanPrincipal.getUsername())
+                            .email(humanPrincipal.getEmail())
+                            .firstName(humanPrincipal.getFirstName())
+                            .lastName(humanPrincipal.getLastName())
+                            .enabled(false) // Disable the user
+                            .emailVerified(humanPrincipal.getEmailVerified())
+                            .build();
+                    keycloakService.updateUser(humanPrincipal.getKeycloakUserId(), keycloakUser);
+                    // TODO: Revoke all active sessions in Keycloak (requires additional KeycloakService method)
+                }
+            } else if (principal instanceof ServicePrincipalEntity) {
+                // Disable Keycloak client for service principals
+                ServicePrincipalEntity servicePrincipal = (ServicePrincipalEntity) principal;
+                if (servicePrincipal.getKeycloakClientId() != null && !servicePrincipal.getKeycloakClientId().isBlank()) {
+                    keycloakService.updateClient(servicePrincipal.getKeycloakClientId(), false);
+                }
+            } else if (principal instanceof SystemPrincipalEntity) {
+                // Disable Keycloak client for system principals
+                SystemPrincipalEntity systemPrincipal = (SystemPrincipalEntity) principal;
+                if (systemPrincipal.getKeycloakClientId() != null && !systemPrincipal.getKeycloakClientId().isBlank()) {
+                    keycloakService.updateClient(systemPrincipal.getKeycloakClientId(), false);
+                }
+            } else if (principal instanceof DevicePrincipalEntity) {
+                // Disable Keycloak client for device principals
+                DevicePrincipalEntity devicePrincipal = (DevicePrincipalEntity) principal;
+                if (devicePrincipal.getKeycloakClientId() != null && !devicePrincipal.getKeycloakClientId().isBlank()) {
+                    keycloakService.updateClient(devicePrincipal.getKeycloakClientId(), false);
+                }
+            }
+        } catch (Exception e) {
+            // Log error but don't fail the transaction - suspension should succeed even if Keycloak sync fails
+            logger.error("Failed to disable principal in Keycloak for principal: " + principal.getPrincipalId(), e);
+        }
+
+        // Update all PrincipalTenantMemberships to SUSPENDED
+        var memberships = membershipRepository.findByPrincipalId(principal.getPrincipalId());
+        for (var membership : memberships) {
+            if (membership.getStatus() == MembershipStatus.ACTIVE) {
+                membership.setStatus(MembershipStatus.SUSPENDED);
+                membershipRepository.save(membership);
+            }
+        }
+
+        // Publish event
+        PrincipalSuspendedEvent event = new PrincipalSuspendedEvent(
+                principal.getPrincipalId(),
+                principal.getPrincipalType().name(),
+                principal.getStatus().name(),
+                command.reason(),
+                command.incidentTicket()
+        );
+
+        RoutingKey routingKey = new RoutingKey(PRINCIPAL_SUSPENDED_KEY, NO_DESC, "", "");
+        // TODO: Pass event payload when event publisher supports it
+        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
+
+        return new PrincipalSuspended(principal.getPrincipalId());
     }
 }

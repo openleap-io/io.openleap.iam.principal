@@ -2,6 +2,8 @@ package io.openleap.iam.principal.controller.mapper;
 
 import io.openleap.iam.principal.controller.dto.ActivatePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.ActivatePrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.SuspendPrincipalRequestDto;
+import io.openleap.iam.principal.controller.dto.SuspendPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateDevicePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateDevicePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
@@ -20,8 +22,10 @@ import io.openleap.iam.principal.domain.dto.CreateSystemPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.DevicePrincipalCreated;
 import io.openleap.iam.principal.domain.dto.HumanPrincipalCreated;
 import io.openleap.iam.principal.domain.dto.PrincipalActivated;
+import io.openleap.iam.principal.domain.dto.PrincipalSuspended;
 import io.openleap.iam.principal.domain.dto.ProfileUpdated;
 import io.openleap.iam.principal.domain.dto.ServicePrincipalCreated;
+import io.openleap.iam.principal.domain.dto.SuspendPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.SystemPrincipalCreated;
 import io.openleap.iam.principal.domain.dto.UpdateProfileCommand;
 import io.openleap.iam.principal.domain.entity.HumanPrincipalEntity;
@@ -197,6 +201,28 @@ public interface PrincipalMapper {
         ActivatePrincipalResponseDto dto = new ActivatePrincipalResponseDto();
         dto.setPrincipalId(activated.principalId().toString());
         dto.setStatus("ACTIVE");
+        return dto;
+    }
+    
+    /**
+     * Maps controller request DTO to service domain command for principal suspension.
+     * Note: This requires custom implementation due to principalId parameter.
+     */
+    default SuspendPrincipalCommand toCommand(SuspendPrincipalRequestDto dto, java.util.UUID principalId) {
+        return new SuspendPrincipalCommand(
+                principalId,
+                dto.getReason(),
+                dto.getIncidentTicket()
+        );
+    }
+    
+    /**
+     * Maps service domain result to controller response DTO for principal suspension.
+     */
+    default SuspendPrincipalResponseDto toResponseDto(PrincipalSuspended suspended) {
+        SuspendPrincipalResponseDto dto = new SuspendPrincipalResponseDto();
+        dto.setPrincipalId(suspended.principalId().toString());
+        dto.setStatus("SUSPENDED");
         return dto;
     }
 }

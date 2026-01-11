@@ -4,6 +4,8 @@ import io.openleap.iam.principal.controller.dto.ActivatePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.ActivatePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.SuspendPrincipalRequestDto;
+import io.openleap.iam.principal.controller.dto.SuspendPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.UpdateProfileRequestDto;
 import io.openleap.iam.principal.controller.dto.UpdateProfileResponseDto;
 import io.openleap.iam.principal.controller.mapper.PrincipalMapper;
@@ -92,6 +94,25 @@ public class HumanPrincipalController {
         var command = principalMapper.toCommand(request, principalId);
         var activated = principalService.activatePrincipal(command);
         var response = principalMapper.toResponseDto(activated);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Suspend a principal.
+     * 
+     * Requires permission: iam.principal:suspend
+     * 
+     * @param principalId the principal ID
+     * @param request the suspension request DTO
+     * @return response DTO containing the principal_id and status
+     */
+    @PostMapping("/{principalId}/suspend")
+    public ResponseEntity<SuspendPrincipalResponseDto> suspendPrincipal(
+            @PathVariable UUID principalId,
+            @Valid @RequestBody SuspendPrincipalRequestDto request) {
+        var command = principalMapper.toCommand(request, principalId);
+        var suspended = principalService.suspendPrincipal(command);
+        var response = principalMapper.toResponseDto(suspended);
         return ResponseEntity.ok(response);
     }
 }
