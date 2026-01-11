@@ -8,14 +8,19 @@ import io.openleap.iam.principal.controller.dto.CreateServicePrincipalRequestDto
 import io.openleap.iam.principal.controller.dto.CreateServicePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateSystemPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateSystemPrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.UpdateProfileRequestDto;
+import io.openleap.iam.principal.controller.dto.UpdateProfileResponseDto;
 import io.openleap.iam.principal.domain.dto.CreateDevicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateHumanPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateServicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateSystemPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.DevicePrincipalCreated;
 import io.openleap.iam.principal.domain.dto.HumanPrincipalCreated;
+import io.openleap.iam.principal.domain.dto.ProfileUpdated;
 import io.openleap.iam.principal.domain.dto.ServicePrincipalCreated;
 import io.openleap.iam.principal.domain.dto.SystemPrincipalCreated;
+import io.openleap.iam.principal.domain.dto.UpdateProfileCommand;
+import io.openleap.iam.principal.domain.entity.HumanPrincipalEntity;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -123,6 +128,48 @@ public interface PrincipalMapper {
         deviceInfo.setModel(created.model());
         dto.setDevicePrincipal(deviceInfo);
         
+        return dto;
+    }
+    
+    /**
+     * Maps controller request DTO to service domain command for profile update.
+     * Note: This requires custom implementation due to principalId parameter.
+     */
+    default UpdateProfileCommand toCommand(UpdateProfileRequestDto dto, java.util.UUID principalId) {
+        return new UpdateProfileCommand(
+                principalId,
+                dto.getFirstName(),
+                dto.getLastName(),
+                dto.getDisplayName(),
+                dto.getPhone(),
+                dto.getLanguage(),
+                dto.getTimezone(),
+                dto.getLocale(),
+                dto.getAvatarUrl(),
+                dto.getBio(),
+                dto.getPreferences(),
+                dto.getContextTags()
+        );
+    }
+    
+    /**
+     * Maps service domain result and entity to controller response DTO for profile update.
+     */
+    default UpdateProfileResponseDto toResponseDto(ProfileUpdated updated, HumanPrincipalEntity principal) {
+        UpdateProfileResponseDto dto = new UpdateProfileResponseDto();
+        dto.setPrincipalId(principal.getPrincipalId().toString());
+        dto.setFirstName(principal.getFirstName());
+        dto.setLastName(principal.getLastName());
+        dto.setDisplayName(principal.getDisplayName());
+        dto.setPhone(principal.getPhone());
+        dto.setLanguage(principal.getLanguage());
+        dto.setTimezone(principal.getTimezone());
+        dto.setLocale(principal.getLocale());
+        dto.setAvatarUrl(principal.getAvatarUrl());
+        dto.setBio(principal.getBio());
+        dto.setPreferences(principal.getPreferences());
+        dto.setContextTags(principal.getContextTags());
+        dto.setUpdatedAt(principal.getUpdatedAt() != null ? principal.getUpdatedAt().toString() : null);
         return dto;
     }
 }

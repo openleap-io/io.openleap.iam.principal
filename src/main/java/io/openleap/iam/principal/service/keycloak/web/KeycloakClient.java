@@ -56,6 +56,14 @@ public class KeycloakClient {
         return getVoidResponseEntity(userData, url);
     }
     
+    public void updateUser(String keycloakUserId, Map<String, Object> userData) {
+        ensureValidToken();
+        String url = String.format("/admin/realms/%s/users/%s", realm, keycloakUserId);
+        
+        HttpEntity<Map<String, Object>> requestEntity = getMapHttpEntity(userData);
+        restTemplate.put(baseUrl + url, requestEntity);
+    }
+    
     @SuppressWarnings("unchecked")
     public ResponseEntity<Map<String, Object>> createClient(Map<String, Object> clientData) {
         ensureValidToken();

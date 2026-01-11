@@ -36,5 +36,7 @@ public interface HumanPrincipalRepository extends JpaRepository<HumanPrincipalEn
      */
     @Query("SELECT h FROM HumanPrincipalEntity h WHERE h.email = :email AND h.status = 'INACTIVE'")
     Optional<HumanPrincipalEntity> findInactiveByEmail(String email);
+
+    Optional<HumanPrincipalEntity> findByPrincipalId(UUID principalId);
 }
 

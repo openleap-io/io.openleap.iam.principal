@@ -56,6 +56,24 @@ public class KeycloakWebService implements KeycloakService {
     }
     
     @Override
+    public void updateUser(String keycloakUserId, User user) {
+        try {
+            Map<String, Object> userData = new HashMap<>();
+            if (user.firstName() != null) {
+                userData.put("firstName", user.firstName());
+            }
+            if (user.lastName() != null) {
+                userData.put("lastName", user.lastName());
+            }
+            
+            keycloakClient.updateUser(keycloakUserId, userData);
+        } catch (Exception e) {
+            logger.error("Error updating user in Keycloak", e);
+            throw new RuntimeException("Failed to update user in Keycloak", e);
+        }
+    }
+    
+    @Override
     public String createClient(String clientId, List<String> allowedScopes) {
         try {
             Map<String, Object> clientData = new HashMap<>();
