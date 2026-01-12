@@ -27,6 +27,7 @@ public class SecurityConfig {
                                         .requestMatchers("/api/v1/iam/principals/*/profile").hasAuthority("ROLE_iam.principal.profile:update")
                                         .requestMatchers("/api/v1/iam/principals/*/activate").hasAuthority("ROLE_iam.principal.profile:update")
                                         .requestMatchers("/api/v1/iam/principals/*/suspend").hasAuthority("ROLE_iam.principal:suspend")
+                                        .requestMatchers("/api/v1/iam/principals/*/deactivate").hasAuthority("ROLE_iam.principal:deactivate")
                                         )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
                         jwt.jwtAuthenticationConverter(customJwtAuthenticationConverter())));

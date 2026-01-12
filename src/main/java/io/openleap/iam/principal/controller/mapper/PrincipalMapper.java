@@ -2,6 +2,8 @@ package io.openleap.iam.principal.controller.mapper;
 
 import io.openleap.iam.principal.controller.dto.ActivatePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.ActivatePrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.DeactivatePrincipalRequestDto;
+import io.openleap.iam.principal.controller.dto.DeactivatePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateDevicePrincipalRequestDto;
@@ -19,9 +21,11 @@ import io.openleap.iam.principal.domain.dto.CreateDevicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateHumanPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateServicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateSystemPrincipalCommand;
+import io.openleap.iam.principal.domain.dto.DeactivatePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.DevicePrincipalCreated;
 import io.openleap.iam.principal.domain.dto.HumanPrincipalCreated;
 import io.openleap.iam.principal.domain.dto.PrincipalActivated;
+import io.openleap.iam.principal.domain.dto.PrincipalDeactivated;
 import io.openleap.iam.principal.domain.dto.PrincipalSuspended;
 import io.openleap.iam.principal.domain.dto.ProfileUpdated;
 import io.openleap.iam.principal.domain.dto.ServicePrincipalCreated;
@@ -223,6 +227,28 @@ public interface PrincipalMapper {
         SuspendPrincipalResponseDto dto = new SuspendPrincipalResponseDto();
         dto.setPrincipalId(suspended.principalId().toString());
         dto.setStatus("SUSPENDED");
+        return dto;
+    }
+
+    /**
+     * Maps controller request DTO to service domain command for principal deactivation.
+     * Note: This requires custom implementation due to principalId parameter.
+     */
+    default DeactivatePrincipalCommand toCommand(DeactivatePrincipalRequestDto dto, java.util.UUID principalId) {
+        return new DeactivatePrincipalCommand(
+                principalId,
+                dto.getReason(),
+                dto.getEffectiveDate()
+        );
+    }
+
+    /**
+     * Maps service domain result to controller response DTO for principal deactivation.
+     */
+    default DeactivatePrincipalResponseDto toResponseDto(PrincipalDeactivated deactivated) {
+        DeactivatePrincipalResponseDto dto = new DeactivatePrincipalResponseDto();
+        dto.setPrincipalId(deactivated.principalId().toString());
+        dto.setStatus("INACTIVE");
         return dto;
     }
 }

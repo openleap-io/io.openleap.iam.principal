@@ -4,6 +4,8 @@ import io.openleap.iam.principal.controller.dto.ActivatePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.ActivatePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.DeactivatePrincipalRequestDto;
+import io.openleap.iam.principal.controller.dto.DeactivatePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.UpdateProfileRequestDto;
@@ -99,9 +101,9 @@ public class HumanPrincipalController {
     
     /**
      * Suspend a principal.
-     * 
+     *
      * Requires permission: iam.principal:suspend
-     * 
+     *
      * @param principalId the principal ID
      * @param request the suspension request DTO
      * @return response DTO containing the principal_id and status
@@ -113,6 +115,25 @@ public class HumanPrincipalController {
         var command = principalMapper.toCommand(request, principalId);
         var suspended = principalService.suspendPrincipal(command);
         var response = principalMapper.toResponseDto(suspended);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Deactivate a principal.
+     *
+     * Requires permission: iam.principal:deactivate
+     *
+     * @param principalId the principal ID
+     * @param request the deactivation request DTO
+     * @return response DTO containing the principal_id and status
+     */
+    @PostMapping("/{principalId}/deactivate")
+    public ResponseEntity<DeactivatePrincipalResponseDto> deactivatePrincipal(
+            @PathVariable UUID principalId,
+            @Valid @RequestBody DeactivatePrincipalRequestDto request) {
+        var command = principalMapper.toCommand(request, principalId);
+        var deactivated = principalService.deactivatePrincipal(command);
+        var response = principalMapper.toResponseDto(deactivated);
         return ResponseEntity.ok(response);
     }
 }

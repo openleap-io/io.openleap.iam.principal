@@ -1,11 +1,14 @@
 package io.openleap.iam.principal.service;
 
 import io.openleap.iam.principal.domain.dto.ActivatePrincipalCommand;
+import io.openleap.iam.principal.domain.dto.DeactivatePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.PrincipalActivated;
+import io.openleap.iam.principal.domain.dto.PrincipalDeactivated;
 import io.openleap.iam.principal.domain.dto.PrincipalSuspended;
 import io.openleap.iam.principal.domain.dto.SuspendPrincipalCommand;
 import io.openleap.iam.principal.domain.entity.*;
 import io.openleap.iam.principal.domain.event.PrincipalActivatedEvent;
+import io.openleap.iam.principal.domain.event.PrincipalDeactivatedEvent;
 import io.openleap.iam.principal.domain.event.PrincipalSuspendedEvent;
 import io.openleap.iam.principal.repository.DevicePrincipalRepository;
 import io.openleap.iam.principal.repository.HumanPrincipalRepository;
@@ -40,6 +43,7 @@ public class PrincipalService {
     private static final String IAM_PRINCIPAL_EXCHANGE = "iam.principal.events";
     private static final String PRINCIPAL_ACTIVATED_KEY = "iam.principal.principal.activated";
     private static final String PRINCIPAL_SUSPENDED_KEY = "iam.principal.principal.suspended";
+    private static final String PRINCIPAL_DEACTIVATED_KEY = "iam.principal.principal.deactivated";
     private static final String NO_DESC = "nodesc";
 
     public PrincipalService(
@@ -292,5 +296,90 @@ public class PrincipalService {
         eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
 
         return new PrincipalSuspended(principal.getPrincipalId());
+    }
+
+    /**
+     * Deactivates a principal.
+     *
+     * @param command the deactivation command
+     * @return the deactivation result
+     */
+    @Transactional
+    public PrincipalDeactivated deactivatePrincipal(DeactivatePrincipalCommand command) {
+        // Find principal by ID
+        Principal principal = findPrincipalById(command.principalId())
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
+
+        // Validate principal is ACTIVE or SUSPENDED
+        if (principal.getStatus() != PrincipalStatus.ACTIVE && principal.getStatus() != PrincipalStatus.SUSPENDED) {
+            throw new IllegalStateException(
+                    "Principal must be ACTIVE or SUSPENDED to deactivate. Current status: " + principal.getStatus());
+        }
+
+        // Update status to INACTIVE
+        principal.setStatus(PrincipalStatus.INACTIVE);
+
+        // Save based on principal type
+        if (principal instanceof HumanPrincipalEntity) {
+            humanPrincipalRepository.save((HumanPrincipalEntity) principal);
+        } else if (principal instanceof ServicePrincipalEntity) {
+            servicePrincipalRepository.save((ServicePrincipalEntity) principal);
+        } else if (principal instanceof SystemPrincipalEntity) {
+            systemPrincipalRepository.save((SystemPrincipalEntity) principal);
+        } else if (principal instanceof DevicePrincipalEntity) {
+            devicePrincipalRepository.save((DevicePrincipalEntity) principal);
+        }
+
+        // Disable in Keycloak and revoke sessions
+        try {
+            if (principal instanceof HumanPrincipalEntity) {
+                HumanPrincipalEntity humanPrincipal = (HumanPrincipalEntity) principal;
+                if (humanPrincipal.getKeycloakUserId() != null && !humanPrincipal.getKeycloakUserId().isBlank()) {
+                    User keycloakUser = User.builder()
+                            .id(humanPrincipal.getPrincipalId().toString())
+                            .username(humanPrincipal.getUsername())
+                            .email(humanPrincipal.getEmail())
+                            .firstName(humanPrincipal.getFirstName())
+                            .lastName(humanPrincipal.getLastName())
+                            .enabled(false)
+                            .emailVerified(humanPrincipal.getEmailVerified())
+                            .build();
+                    keycloakService.updateUser(humanPrincipal.getKeycloakUserId(), keycloakUser);
+                    // TODO: Revoke all active sessions in Keycloak (requires additional KeycloakService method)
+                }
+            } else if (principal instanceof ServicePrincipalEntity) {
+                ServicePrincipalEntity servicePrincipal = (ServicePrincipalEntity) principal;
+                if (servicePrincipal.getKeycloakClientId() != null && !servicePrincipal.getKeycloakClientId().isBlank()) {
+                    keycloakService.updateClient(servicePrincipal.getKeycloakClientId(), false);
+                }
+            } else if (principal instanceof SystemPrincipalEntity) {
+                SystemPrincipalEntity systemPrincipal = (SystemPrincipalEntity) principal;
+                if (systemPrincipal.getKeycloakClientId() != null && !systemPrincipal.getKeycloakClientId().isBlank()) {
+                    keycloakService.updateClient(systemPrincipal.getKeycloakClientId(), false);
+                }
+            } else if (principal instanceof DevicePrincipalEntity) {
+                DevicePrincipalEntity devicePrincipal = (DevicePrincipalEntity) principal;
+                if (devicePrincipal.getKeycloakClientId() != null && !devicePrincipal.getKeycloakClientId().isBlank()) {
+                    keycloakService.updateClient(devicePrincipal.getKeycloakClientId(), false);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Failed to disable principal in Keycloak for principal: " + principal.getPrincipalId(), e);
+        }
+
+        // Publish event
+        PrincipalDeactivatedEvent event = new PrincipalDeactivatedEvent(
+                principal.getPrincipalId(),
+                principal.getPrincipalType().name(),
+                principal.getStatus().name(),
+                command.reason(),
+                command.effectiveDate()
+        );
+
+        RoutingKey routingKey = new RoutingKey(PRINCIPAL_DEACTIVATED_KEY, NO_DESC, "", "");
+        // TODO: Pass event payload when event publisher supports it
+        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
+
+        return new PrincipalDeactivated(principal.getPrincipalId());
     }
 }
