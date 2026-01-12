@@ -145,4 +145,39 @@ public class KeycloakWebService implements KeycloakService {
             throw new RuntimeException("Failed to fetch client secret from Keycloak", e);
         }
     }
+
+    @Override
+    public void deleteUser(String keycloakUserId) {
+        try {
+            keycloakClient.deleteUser(keycloakUserId);
+        } catch (Exception e) {
+            logger.error("Error deleting user from Keycloak: {}", keycloakUserId, e);
+            throw new RuntimeException("Failed to delete user from Keycloak", e);
+        }
+    }
+
+    @Override
+    public void deleteClient(String clientId) {
+        try {
+            keycloakClient.deleteClient(clientId);
+        } catch (Exception e) {
+            logger.error("Error deleting client from Keycloak: {}", clientId, e);
+            throw new RuntimeException("Failed to delete client from Keycloak", e);
+        }
+    }
+
+    @Override
+    public String regenerateClientSecret(String clientId) {
+        try {
+            ResponseEntity<Map<String, Object>> secretResponse = keycloakClient.regenerateClientSecret(clientId);
+            Map<String, Object> secretBody = secretResponse.getBody();
+            if (secretBody != null && secretBody.containsKey("value")) {
+                return (String) secretBody.get("value");
+            }
+            throw new RuntimeException("Client secret not found in response for client: " + clientId);
+        } catch (Exception e) {
+            logger.error("Error regenerating client secret for client: {}", clientId, e);
+            throw new RuntimeException("Failed to regenerate client secret in Keycloak", e);
+        }
+    }
 }

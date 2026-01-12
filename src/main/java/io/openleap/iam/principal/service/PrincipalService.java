@@ -2,13 +2,18 @@ package io.openleap.iam.principal.service;
 
 import io.openleap.iam.principal.domain.dto.ActivatePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.DeactivatePrincipalCommand;
+import io.openleap.iam.principal.domain.dto.DeletePrincipalGdprCommand;
 import io.openleap.iam.principal.domain.dto.PrincipalActivated;
 import io.openleap.iam.principal.domain.dto.PrincipalDeactivated;
+import io.openleap.iam.principal.domain.dto.PrincipalDeleted;
 import io.openleap.iam.principal.domain.dto.PrincipalSuspended;
+import io.openleap.iam.principal.domain.dto.SearchPrincipalsQuery;
+import io.openleap.iam.principal.domain.dto.SearchPrincipalsResult;
 import io.openleap.iam.principal.domain.dto.SuspendPrincipalCommand;
 import io.openleap.iam.principal.domain.entity.*;
 import io.openleap.iam.principal.domain.event.PrincipalActivatedEvent;
 import io.openleap.iam.principal.domain.event.PrincipalDeactivatedEvent;
+import io.openleap.iam.principal.domain.event.PrincipalDeletedEvent;
 import io.openleap.iam.principal.domain.event.PrincipalSuspendedEvent;
 import io.openleap.iam.principal.repository.DevicePrincipalRepository;
 import io.openleap.iam.principal.repository.HumanPrincipalRepository;
@@ -21,10 +26,15 @@ import io.openleap.starter.core.messaging.RoutingKey;
 import io.openleap.starter.core.messaging.event.EventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -44,7 +54,9 @@ public class PrincipalService {
     private static final String PRINCIPAL_ACTIVATED_KEY = "iam.principal.principal.activated";
     private static final String PRINCIPAL_SUSPENDED_KEY = "iam.principal.principal.suspended";
     private static final String PRINCIPAL_DEACTIVATED_KEY = "iam.principal.principal.deactivated";
+    private static final String PRINCIPAL_DELETED_KEY = "iam.principal.principal.deleted";
     private static final String NO_DESC = "nodesc";
+    private static final int GDPR_RETENTION_DAYS = 30;
 
     public PrincipalService(
             HumanPrincipalRepository humanPrincipalRepository,
@@ -381,5 +393,175 @@ public class PrincipalService {
         eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
 
         return new PrincipalDeactivated(principal.getPrincipalId());
+    }
+
+    /**
+     * Deletes a principal per GDPR right to erasure.
+     *
+     * @param command the GDPR deletion command
+     * @return the deletion result
+     */
+    @Transactional
+    public PrincipalDeleted deletePrincipalGdpr(DeletePrincipalGdprCommand command) {
+        // Find principal by ID
+        Principal principal = findPrincipalById(command.principalId())
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
+
+        // Validate principal is INACTIVE
+        if (principal.getStatus() != PrincipalStatus.INACTIVE) {
+            throw new IllegalStateException(
+                    "Principal must be INACTIVE to delete per GDPR. Current status: " + principal.getStatus());
+        }
+
+        // Validate minimum retention period has passed (30 days)
+        java.time.Instant inactiveThreshold = java.time.Instant.now().minus(java.time.Duration.ofDays(GDPR_RETENTION_DAYS));
+        if (principal.getUpdatedAt() != null && principal.getUpdatedAt().isAfter(inactiveThreshold)) {
+            throw new IllegalStateException(
+                    "Principal must be INACTIVE for at least " + GDPR_RETENTION_DAYS + " days before GDPR deletion");
+        }
+
+        // Generate audit reference
+        String auditReference = "aud-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+        java.time.Instant deletedAt = java.time.Instant.now();
+
+        // Store principal type before anonymization
+        String principalType = principal.getPrincipalType().name();
+
+        // Anonymize principal data
+        String anonymizedUsername = "deleted_user_" + java.util.UUID.randomUUID();
+        String anonymizedEmail = "deleted_" + deletedAt.toEpochMilli() + "@example.com";
+
+        principal.setUsername(anonymizedUsername);
+        principal.setEmail(anonymizedEmail);
+        principal.setContextTags(null);
+        principal.setStatus(PrincipalStatus.DELETED);
+
+        // Additional anonymization for HumanPrincipal
+        if (principal instanceof HumanPrincipalEntity humanPrincipal) {
+            humanPrincipal.setFirstName("Deleted");
+            humanPrincipal.setLastName("User");
+            humanPrincipal.setDisplayName("Deleted User");
+            humanPrincipal.setPhone(null);
+            humanPrincipal.setBio(null);
+            humanPrincipal.setAvatarUrl(null);
+            humanPrincipal.setPreferences(null);
+            humanPrincipalRepository.save(humanPrincipal);
+
+            // Delete from Keycloak
+            try {
+                if (humanPrincipal.getKeycloakUserId() != null && !humanPrincipal.getKeycloakUserId().isBlank()) {
+                    keycloakService.deleteUser(humanPrincipal.getKeycloakUserId());
+                }
+            } catch (Exception e) {
+                logger.error("Failed to delete user from Keycloak for principal: " + principal.getPrincipalId(), e);
+            }
+        } else if (principal instanceof ServicePrincipalEntity servicePrincipal) {
+            servicePrincipal.setServiceName(anonymizedUsername);
+            servicePrincipal.setAllowedScopes(null);
+            servicePrincipal.setApiKeyHash("deleted");
+            servicePrincipalRepository.save(servicePrincipal);
+
+            // Delete from Keycloak
+            try {
+                if (servicePrincipal.getKeycloakClientId() != null && !servicePrincipal.getKeycloakClientId().isBlank()) {
+                    keycloakService.deleteClient(servicePrincipal.getKeycloakClientId());
+                }
+            } catch (Exception e) {
+                logger.error("Failed to delete client from Keycloak for principal: " + principal.getPrincipalId(), e);
+            }
+        } else if (principal instanceof SystemPrincipalEntity systemPrincipal) {
+            systemPrincipal.setSystemIdentifier(anonymizedUsername);
+            systemPrincipal.setCertificateThumbprint(null);
+            systemPrincipal.setAllowedOperations(null);
+            systemPrincipalRepository.save(systemPrincipal);
+
+            // Delete from Keycloak
+            try {
+                if (systemPrincipal.getKeycloakClientId() != null && !systemPrincipal.getKeycloakClientId().isBlank()) {
+                    keycloakService.deleteClient(systemPrincipal.getKeycloakClientId());
+                }
+            } catch (Exception e) {
+                logger.error("Failed to delete client from Keycloak for principal: " + principal.getPrincipalId(), e);
+            }
+        } else if (principal instanceof DevicePrincipalEntity devicePrincipal) {
+            devicePrincipal.setDeviceIdentifier(anonymizedUsername);
+            devicePrincipal.setManufacturer(null);
+            devicePrincipal.setModel(null);
+            devicePrincipalRepository.save(devicePrincipal);
+
+            // Delete from Keycloak
+            try {
+                if (devicePrincipal.getKeycloakClientId() != null && !devicePrincipal.getKeycloakClientId().isBlank()) {
+                    keycloakService.deleteClient(devicePrincipal.getKeycloakClientId());
+                }
+            } catch (Exception e) {
+                logger.error("Failed to delete client from Keycloak for principal: " + principal.getPrincipalId(), e);
+            }
+        }
+
+        // Delete all tenant memberships
+        var memberships = membershipRepository.findByPrincipalId(principal.getPrincipalId());
+        for (var membership : memberships) {
+            membershipRepository.delete(membership);
+        }
+
+        // Publish event
+        PrincipalDeletedEvent event = new PrincipalDeletedEvent(
+                principal.getPrincipalId(),
+                principalType,
+                command.gdprRequestTicket(),
+                command.requestorEmail(),
+                auditReference,
+                deletedAt
+        );
+
+        RoutingKey routingKey = new RoutingKey(PRINCIPAL_DELETED_KEY, NO_DESC, "", "");
+        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
+
+        return new PrincipalDeleted(principal.getPrincipalId(), true, auditReference, deletedAt);
+    }
+
+    /**
+     * Searches principals with filters.
+     *
+     * @param query the search query
+     * @return the search result
+     */
+    @Transactional(readOnly = true)
+    public SearchPrincipalsResult searchPrincipals(SearchPrincipalsQuery query) {
+        // Page is 1-indexed from API, but Spring Data uses 0-indexed
+        int pageIndex = Math.max(0, query.page() - 1);
+        int pageSize = Math.min(Math.max(1, query.size()), 100); // Limit to 100
+
+        PageRequest pageRequest = PageRequest.of(pageIndex, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        List<SearchPrincipalsResult.PrincipalItem> items = new ArrayList<>();
+        long total = 0;
+
+        // If no specific principal type is requested, or HUMAN is requested, search human principals
+        if (query.principalType() == null || query.principalType() == PrincipalType.HUMAN) {
+            Page<HumanPrincipalEntity> humanPage = humanPrincipalRepository.searchPrincipals(
+                    query.search(),
+                    query.status(),
+                    query.tenantId(),
+                    pageRequest
+            );
+
+            for (HumanPrincipalEntity entity : humanPage.getContent()) {
+                items.add(new SearchPrincipalsResult.PrincipalItem(
+                        entity.getPrincipalId(),
+                        entity.getUsername(),
+                        entity.getEmail(),
+                        entity.getPrincipalType().name(),
+                        entity.getStatus().name(),
+                        entity.getPrimaryTenantId(),
+                        entity.getLastLoginAt(),
+                        entity.getCreatedAt()
+                ));
+            }
+            total = humanPage.getTotalElements();
+        }
+
+        return new SearchPrincipalsResult(items, total, query.page(), pageSize);
     }
 }

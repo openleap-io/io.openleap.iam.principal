@@ -1,8 +1,11 @@
 package io.openleap.iam.principal.service;
 
 import io.openleap.iam.principal.domain.dto.CreateServicePrincipalCommand;
+import io.openleap.iam.principal.domain.dto.CredentialsRotated;
+import io.openleap.iam.principal.domain.dto.RotateCredentialsCommand;
 import io.openleap.iam.principal.domain.dto.ServicePrincipalCreated;
 import io.openleap.iam.principal.domain.entity.*;
+import io.openleap.iam.principal.domain.event.CredentialsRotatedEvent;
 import io.openleap.iam.principal.domain.event.ServicePrincipalCreatedEvent;
 import io.openleap.iam.principal.exception.ServiceNameAlreadyExistsException;
 import io.openleap.iam.principal.exception.TenantNotFoundException;
@@ -15,6 +18,7 @@ import io.openleap.starter.core.messaging.event.EventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collections;
 
@@ -30,7 +34,9 @@ public class ServicePrincipalService {
 
     private static final String IAM_PRINCIPAL_EXCHANGE = "iam.principal.events";
     private static final String SERVICE_PRINCIPAL_CREATED_KEY = "iam.principal.service_principal.created";
+    private static final String CREDENTIALS_ROTATED_KEY = "iam.principal.credentials.rotated";
     private static final String NO_DESC = "nodesc";
+    private static final int CREDENTIAL_ROTATION_DAYS = 90;
 
     public ServicePrincipalService(
             ServicePrincipalRepository servicePrincipalRepository,
@@ -134,6 +140,80 @@ public class ServicePrincipalService {
                 keycloakClientSecret, // Return client secret (ONLY TIME)
                 principal.getAllowedScopes(),
                 principal.getCredentialRotationDate()
+        );
+    }
+
+    /**
+     * Rotates credentials for a service principal.
+     *
+     * @param command the rotation command
+     * @return the rotation result with new credentials
+     */
+    @Transactional
+    public CredentialsRotated rotateCredentials(RotateCredentialsCommand command) {
+        // Find service principal by ID
+        ServicePrincipalEntity principal = servicePrincipalRepository.findById(command.principalId())
+                .orElseThrow(() -> new RuntimeException("Service principal not found: " + command.principalId()));
+
+        // Validate principal is ACTIVE
+        if (principal.getStatus() != PrincipalStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "Service principal must be ACTIVE to rotate credentials. Current status: " + principal.getStatus());
+        }
+
+        // Check if rotation is due or forced
+        boolean rotationDue = principal.getCredentialRotationDate() != null
+                && !LocalDate.now().isBefore(principal.getCredentialRotationDate());
+        boolean forceRotation = command.force() != null && command.force();
+
+        if (!rotationDue && !forceRotation) {
+            throw new IllegalStateException(
+                    "Credential rotation is not due. Next rotation date: " + principal.getCredentialRotationDate()
+                    + ". Use force=true to rotate anyway.");
+        }
+
+        // Generate new API key
+        String newApiKey = credentialService.generateApiKey();
+        String newApiKeyHash = credentialService.hashApiKey(newApiKey);
+
+        // Update principal
+        Instant rotatedAt = Instant.now();
+        LocalDate newRotationDate = LocalDate.now().plusDays(CREDENTIAL_ROTATION_DAYS);
+
+        principal.setApiKeyHash(newApiKeyHash);
+        principal.setCredentialRotationDate(newRotationDate);
+        principal.setRotatedAt(rotatedAt);
+
+        servicePrincipalRepository.save(principal);
+
+        // Regenerate Keycloak client secret
+        String newKeycloakClientSecret = null;
+        if (principal.getKeycloakClientId() != null && !principal.getKeycloakClientId().isBlank()) {
+            try {
+                newKeycloakClientSecret = keycloakService.regenerateClientSecret(principal.getKeycloakClientId());
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to regenerate client secret in Keycloak: " + e.getMessage(), e);
+            }
+        }
+
+        // Publish event
+        CredentialsRotatedEvent event = new CredentialsRotatedEvent(
+                principal.getPrincipalId(),
+                principal.getServiceName(),
+                newRotationDate,
+                rotatedAt,
+                command.reason()
+        );
+
+        RoutingKey routingKey = new RoutingKey(CREDENTIALS_ROTATED_KEY, NO_DESC, "", "");
+        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
+
+        return new CredentialsRotated(
+                principal.getPrincipalId(),
+                newApiKey, // Return plain-text API key (ONLY TIME)
+                newKeycloakClientSecret, // Return client secret (ONLY TIME)
+                newRotationDate,
+                rotatedAt
         );
     }
 }

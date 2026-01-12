@@ -20,7 +20,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(
                         authorize ->
                                 authorize
-                                        .requestMatchers("/api/v1/iam/principals").hasAuthority("ROLE_iam.principal:create")
+                                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/iam/principals").hasAuthority("ROLE_iam.principal:search")
+                                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/iam/principals").hasAuthority("ROLE_iam.principal:create")
                                         .requestMatchers("/api/v1/iam/principals/service").hasAuthority("ROLE_iam.service_principal:create")
                                         .requestMatchers("/api/v1/iam/principals/system").hasAuthority("ROLE_iam.system_principal:create")
                                         .requestMatchers("/api/v1/iam/principals/device").hasAuthority("ROLE_iam.device_principal:create")
@@ -28,6 +29,8 @@ public class SecurityConfig {
                                         .requestMatchers("/api/v1/iam/principals/*/activate").hasAuthority("ROLE_iam.principal.profile:update")
                                         .requestMatchers("/api/v1/iam/principals/*/suspend").hasAuthority("ROLE_iam.principal:suspend")
                                         .requestMatchers("/api/v1/iam/principals/*/deactivate").hasAuthority("ROLE_iam.principal:deactivate")
+                                        .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/v1/iam/principals/*/gdpr").hasAuthority("ROLE_iam.principal.gdpr:delete")
+                                        .requestMatchers("/api/v1/iam/principals/*/rotate-credentials").hasAuthority("ROLE_iam.service_principal.credentials:rotate")
                                         )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
                         jwt.jwtAuthenticationConverter(customJwtAuthenticationConverter())));

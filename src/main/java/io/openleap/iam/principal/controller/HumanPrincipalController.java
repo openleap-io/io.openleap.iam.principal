@@ -6,10 +6,16 @@ import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.DeactivatePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.DeactivatePrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.DeletePrincipalGdprRequestDto;
+import io.openleap.iam.principal.controller.dto.DeletePrincipalGdprResponseDto;
+import io.openleap.iam.principal.controller.dto.SearchPrincipalsResponseDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.UpdateProfileRequestDto;
 import io.openleap.iam.principal.controller.dto.UpdateProfileResponseDto;
+import io.openleap.iam.principal.domain.dto.SearchPrincipalsQuery;
+import io.openleap.iam.principal.domain.entity.PrincipalStatus;
+import io.openleap.iam.principal.domain.entity.PrincipalType;
 import io.openleap.iam.principal.controller.mapper.PrincipalMapper;
 import io.openleap.iam.principal.repository.HumanPrincipalRepository;
 import io.openleap.iam.principal.service.HumanPrincipalService;
@@ -19,6 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.UUID;
 
 @RestController
@@ -134,6 +141,94 @@ public class HumanPrincipalController {
         var command = principalMapper.toCommand(request, principalId);
         var deactivated = principalService.deactivatePrincipal(command);
         var response = principalMapper.toResponseDto(deactivated);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Delete a principal per GDPR right to erasure.
+     *
+     * Requires permission: iam.principal.gdpr:delete
+     *
+     * @param principalId the principal ID
+     * @param request the GDPR deletion request DTO
+     * @return response DTO containing the deletion result
+     */
+    @DeleteMapping("/{principalId}/gdpr")
+    public ResponseEntity<DeletePrincipalGdprResponseDto> deletePrincipalGdpr(
+            @PathVariable UUID principalId,
+            @Valid @RequestBody DeletePrincipalGdprRequestDto request) {
+        var command = principalMapper.toCommand(request, principalId);
+        var deleted = principalService.deletePrincipalGdpr(command);
+        var response = principalMapper.toResponseDto(deleted);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Search principals with filters.
+     *
+     * Requires permission: iam.principal:search
+     *
+     * @param search search term (partial match on username or email)
+     * @param principalType filter by principal type
+     * @param status filter by status
+     * @param tenantId filter by tenant ID
+     * @param page page number (1-indexed, default 1)
+     * @param size page size (default 50, max 100)
+     * @return paginated search results
+     */
+    @GetMapping
+    public ResponseEntity<SearchPrincipalsResponseDto> searchPrincipals(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false, name = "principal_type") String principalType,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false, name = "tenant_id") UUID tenantId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int size) {
+
+        // Parse principal type if provided
+        PrincipalType parsedPrincipalType = null;
+        if (principalType != null && !principalType.isBlank()) {
+            try {
+                parsedPrincipalType = PrincipalType.valueOf(principalType.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // Invalid principal type, ignore filter
+            }
+        }
+
+        // Parse status if provided
+        PrincipalStatus parsedStatus = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                parsedStatus = PrincipalStatus.valueOf(status.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // Invalid status, ignore filter
+            }
+        }
+
+        var query = new SearchPrincipalsQuery(search, parsedPrincipalType, parsedStatus, tenantId, page, size);
+        var result = principalService.searchPrincipals(query);
+
+        // Map to response DTO
+        SearchPrincipalsResponseDto response = new SearchPrincipalsResponseDto();
+        response.setTotal(result.total());
+        response.setPage(result.page());
+        response.setSize(result.size());
+
+        var items = new ArrayList<SearchPrincipalsResponseDto.PrincipalSearchItem>();
+        for (var item : result.items()) {
+            var responseItem = new SearchPrincipalsResponseDto.PrincipalSearchItem();
+            responseItem.setPrincipalId(item.principalId().toString());
+            responseItem.setUsername(item.username());
+            responseItem.setEmail(item.email());
+            responseItem.setPrincipalType(item.principalType());
+            responseItem.setStatus(item.status());
+            responseItem.setPrimaryTenantId(item.primaryTenantId() != null ? item.primaryTenantId().toString() : null);
+            responseItem.setLastLoginAt(item.lastLoginAt() != null ? item.lastLoginAt().toString() : null);
+            responseItem.setCreatedAt(item.createdAt() != null ? item.createdAt().toString() : null);
+            items.add(responseItem);
+        }
+        response.setItems(items);
+
         return ResponseEntity.ok(response);
     }
 }

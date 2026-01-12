@@ -4,6 +4,10 @@ import io.openleap.iam.principal.controller.dto.ActivatePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.ActivatePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.DeactivatePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.DeactivatePrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.DeletePrincipalGdprRequestDto;
+import io.openleap.iam.principal.controller.dto.DeletePrincipalGdprResponseDto;
+import io.openleap.iam.principal.controller.dto.RotateCredentialsRequestDto;
+import io.openleap.iam.principal.controller.dto.RotateCredentialsResponseDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateDevicePrincipalRequestDto;
@@ -22,12 +26,16 @@ import io.openleap.iam.principal.domain.dto.CreateHumanPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateServicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateSystemPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.DeactivatePrincipalCommand;
+import io.openleap.iam.principal.domain.dto.CredentialsRotated;
+import io.openleap.iam.principal.domain.dto.DeletePrincipalGdprCommand;
 import io.openleap.iam.principal.domain.dto.DevicePrincipalCreated;
 import io.openleap.iam.principal.domain.dto.HumanPrincipalCreated;
 import io.openleap.iam.principal.domain.dto.PrincipalActivated;
 import io.openleap.iam.principal.domain.dto.PrincipalDeactivated;
+import io.openleap.iam.principal.domain.dto.PrincipalDeleted;
 import io.openleap.iam.principal.domain.dto.PrincipalSuspended;
 import io.openleap.iam.principal.domain.dto.ProfileUpdated;
+import io.openleap.iam.principal.domain.dto.RotateCredentialsCommand;
 import io.openleap.iam.principal.domain.dto.ServicePrincipalCreated;
 import io.openleap.iam.principal.domain.dto.SuspendPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.SystemPrincipalCreated;
@@ -249,6 +257,58 @@ public interface PrincipalMapper {
         DeactivatePrincipalResponseDto dto = new DeactivatePrincipalResponseDto();
         dto.setPrincipalId(deactivated.principalId().toString());
         dto.setStatus("INACTIVE");
+        return dto;
+    }
+
+    /**
+     * Maps controller request DTO to service domain command for GDPR deletion.
+     * Note: This requires custom implementation due to principalId parameter.
+     */
+    default DeletePrincipalGdprCommand toCommand(DeletePrincipalGdprRequestDto dto, java.util.UUID principalId) {
+        return new DeletePrincipalGdprCommand(
+                principalId,
+                dto.getConfirmation(),
+                dto.getGdprRequestTicket(),
+                dto.getRequestorEmail()
+        );
+    }
+
+    /**
+     * Maps service domain result to controller response DTO for GDPR deletion.
+     */
+    default DeletePrincipalGdprResponseDto toResponseDto(PrincipalDeleted deleted) {
+        DeletePrincipalGdprResponseDto dto = new DeletePrincipalGdprResponseDto();
+        dto.setPrincipalId(deleted.principalId().toString());
+        dto.setStatus("DELETED");
+        dto.setAnonymized(deleted.anonymized());
+        dto.setAuditReference(deleted.auditReference());
+        dto.setDeletedAt(deleted.deletedAt().toString());
+        return dto;
+    }
+
+    /**
+     * Maps controller request DTO to service domain command for credentials rotation.
+     * Note: This requires custom implementation due to principalId parameter.
+     */
+    default RotateCredentialsCommand toCommand(RotateCredentialsRequestDto dto, java.util.UUID principalId) {
+        return new RotateCredentialsCommand(
+                principalId,
+                dto.getForce(),
+                dto.getReason()
+        );
+    }
+
+    /**
+     * Maps service domain result to controller response DTO for credentials rotation.
+     */
+    default RotateCredentialsResponseDto toResponseDto(CredentialsRotated rotated) {
+        RotateCredentialsResponseDto dto = new RotateCredentialsResponseDto();
+        dto.setPrincipalId(rotated.principalId().toString());
+        dto.setApiKey(rotated.apiKey());
+        dto.setKeycloakClientSecret(rotated.keycloakClientSecret());
+        dto.setCredentialRotationDate(rotated.credentialRotationDate().toString());
+        dto.setRotatedAt(rotated.rotatedAt().toString());
+        dto.setWarning("Store these credentials securely. They cannot be retrieved again.");
         return dto;
     }
 }

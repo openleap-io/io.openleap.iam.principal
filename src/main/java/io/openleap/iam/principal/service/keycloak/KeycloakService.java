@@ -24,9 +24,31 @@ public interface KeycloakService {
     
     /**
      * Updates a client in Keycloak (e.g., to enable/disable it).
-     * 
+     *
      * @param clientId the client ID
      * @param enabled whether the client should be enabled
      */
     void updateClient(String clientId, boolean enabled);
+
+    /**
+     * Deletes a user from Keycloak.
+     *
+     * @param keycloakUserId the Keycloak user ID
+     */
+    void deleteUser(String keycloakUserId);
+
+    /**
+     * Deletes a client from Keycloak.
+     *
+     * @param clientId the client ID
+     */
+    void deleteClient(String clientId);
+
+    /**
+     * Regenerates the client secret for a service principal.
+     *
+     * @param clientId the client ID
+     * @return the new client secret
+     */
+    String regenerateClientSecret(String clientId);
 }

@@ -114,18 +114,90 @@ public class KeycloakClient {
             requestEntity,
             Map[].class
         );
-        
+
         if (clientsResponse.getBody() == null || clientsResponse.getBody().length == 0) {
             throw new RuntimeException("Client not found: " + clientId);
         }
-        
+
         Map<String, Object> client = (Map<String, Object>) clientsResponse.getBody()[0];
         String clientUuid = (String) client.get("id");
-        
+
         // Now update the client
         String updateUrl = String.format("/admin/realms/%s/clients/%s", realm, clientUuid);
         HttpEntity<Map<String, Object>> updateRequestEntity = getMapHttpEntity(clientData);
         restTemplate.put(baseUrl + updateUrl, updateRequestEntity);
+    }
+
+    public void deleteUser(String keycloakUserId) {
+        ensureValidToken();
+        String url = String.format("/admin/realms/%s/users/%s", realm, keycloakUserId);
+
+        HttpEntity<Map<String, Object>> requestEntity = getMapHttpEntity(null);
+        restTemplate.exchange(
+            baseUrl + url,
+            org.springframework.http.HttpMethod.DELETE,
+            requestEntity,
+            Void.class
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void deleteClient(String clientId) {
+        ensureValidToken();
+        // First, get the client UUID by clientId
+        String getClientUrl = String.format("/admin/realms/%s/clients?clientId=%s", realm, clientId);
+        HttpEntity<Map<String, Object>> requestEntity = getMapHttpEntity(null);
+        ResponseEntity<Map[]> clientsResponse = restTemplate.exchange(
+            baseUrl + getClientUrl,
+            org.springframework.http.HttpMethod.GET,
+            requestEntity,
+            Map[].class
+        );
+
+        if (clientsResponse.getBody() == null || clientsResponse.getBody().length == 0) {
+            throw new RuntimeException("Client not found: " + clientId);
+        }
+
+        Map<String, Object> client = (Map<String, Object>) clientsResponse.getBody()[0];
+        String clientUuid = (String) client.get("id");
+
+        // Now delete the client
+        String deleteUrl = String.format("/admin/realms/%s/clients/%s", realm, clientUuid);
+        restTemplate.exchange(
+            baseUrl + deleteUrl,
+            org.springframework.http.HttpMethod.DELETE,
+            requestEntity,
+            Void.class
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public ResponseEntity<Map<String, Object>> regenerateClientSecret(String clientId) {
+        ensureValidToken();
+        // First, get the client UUID by clientId
+        String getClientUrl = String.format("/admin/realms/%s/clients?clientId=%s", realm, clientId);
+        HttpEntity<Map<String, Object>> requestEntity = getMapHttpEntity(null);
+        ResponseEntity<Map[]> clientsResponse = restTemplate.exchange(
+            baseUrl + getClientUrl,
+            org.springframework.http.HttpMethod.GET,
+            requestEntity,
+            Map[].class
+        );
+
+        if (clientsResponse.getBody() == null || clientsResponse.getBody().length == 0) {
+            throw new RuntimeException("Client not found: " + clientId);
+        }
+
+        Map<String, Object> client = (Map<String, Object>) clientsResponse.getBody()[0];
+        String clientUuid = (String) client.get("id");
+
+        // Now regenerate the client secret
+        String secretUrl = String.format("/admin/realms/%s/clients/%s/client-secret", realm, clientUuid);
+        return (ResponseEntity<Map<String, Object>>) (ResponseEntity<?>) restTemplate.postForEntity(
+            baseUrl + secretUrl,
+            requestEntity,
+            Map.class
+        );
     }
 
     @NotNull
