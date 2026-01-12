@@ -31,6 +31,7 @@ public class SecurityConfig {
                                         .requestMatchers("/api/v1/iam/principals/*/deactivate").hasAuthority("ROLE_iam.principal:deactivate")
                                         .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/v1/iam/principals/*/gdpr").hasAuthority("ROLE_iam.principal.gdpr:delete")
                                         .requestMatchers("/api/v1/iam/principals/*/rotate-credentials").hasAuthority("ROLE_iam.service_principal.credentials:rotate")
+                                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/iam/principals/*").hasAuthority("ROLE_iam.principal:read")
                                         )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
                         jwt.jwtAuthenticationConverter(customJwtAuthenticationConverter())));

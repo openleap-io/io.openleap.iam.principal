@@ -6,6 +6,7 @@ import io.openleap.iam.principal.controller.dto.DeactivatePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.DeactivatePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.DeletePrincipalGdprRequestDto;
 import io.openleap.iam.principal.controller.dto.DeletePrincipalGdprResponseDto;
+import io.openleap.iam.principal.controller.dto.GetPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.RotateCredentialsRequestDto;
 import io.openleap.iam.principal.controller.dto.RotateCredentialsResponseDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalRequestDto;
@@ -33,6 +34,7 @@ import io.openleap.iam.principal.domain.dto.HumanPrincipalCreated;
 import io.openleap.iam.principal.domain.dto.PrincipalActivated;
 import io.openleap.iam.principal.domain.dto.PrincipalDeactivated;
 import io.openleap.iam.principal.domain.dto.PrincipalDeleted;
+import io.openleap.iam.principal.domain.dto.PrincipalDetails;
 import io.openleap.iam.principal.domain.dto.PrincipalSuspended;
 import io.openleap.iam.principal.domain.dto.ProfileUpdated;
 import io.openleap.iam.principal.domain.dto.RotateCredentialsCommand;
@@ -309,6 +311,48 @@ public interface PrincipalMapper {
         dto.setCredentialRotationDate(rotated.credentialRotationDate().toString());
         dto.setRotatedAt(rotated.rotatedAt().toString());
         dto.setWarning("Store these credentials securely. They cannot be retrieved again.");
+        return dto;
+    }
+
+    /**
+     * Maps service domain result to controller response DTO for get principal.
+     */
+    default GetPrincipalResponseDto toResponseDto(PrincipalDetails details) {
+        GetPrincipalResponseDto dto = new GetPrincipalResponseDto();
+        dto.setPrincipalId(details.principalId().toString());
+        dto.setPrincipalType(details.principalType());
+        dto.setUsername(details.username());
+        dto.setEmail(details.email());
+        dto.setStatus(details.status());
+        dto.setPrimaryTenantId(details.primaryTenantId() != null ? details.primaryTenantId().toString() : null);
+        dto.setCreatedAt(details.createdAt() != null ? details.createdAt().toString() : null);
+        dto.setUpdatedAt(details.updatedAt() != null ? details.updatedAt().toString() : null);
+        dto.setContextTags(details.contextTags());
+
+        // Human principal specific fields
+        dto.setEmailVerified(details.emailVerified());
+        dto.setMfaEnabled(details.mfaEnabled());
+        dto.setLastLoginAt(details.lastLoginAt() != null ? details.lastLoginAt().toString() : null);
+        dto.setDisplayName(details.displayName());
+        dto.setFirstName(details.firstName());
+        dto.setLastName(details.lastName());
+
+        // Service principal specific fields
+        dto.setServiceName(details.serviceName());
+        dto.setAllowedScopes(details.allowedScopes());
+        dto.setCredentialRotationDate(details.credentialRotationDate() != null ? details.credentialRotationDate().toString() : null);
+
+        // System principal specific fields
+        dto.setSystemIdentifier(details.systemIdentifier());
+        dto.setIntegrationType(details.integrationType());
+        dto.setAllowedOperations(details.allowedOperations());
+
+        // Device principal specific fields
+        dto.setDeviceIdentifier(details.deviceIdentifier());
+        dto.setDeviceType(details.deviceType());
+        dto.setManufacturer(details.manufacturer());
+        dto.setModel(details.model());
+
         return dto;
     }
 }

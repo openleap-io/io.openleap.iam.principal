@@ -8,6 +8,7 @@ import io.openleap.iam.principal.controller.dto.DeactivatePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.DeactivatePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.DeletePrincipalGdprRequestDto;
 import io.openleap.iam.principal.controller.dto.DeletePrincipalGdprResponseDto;
+import io.openleap.iam.principal.controller.dto.GetPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.SearchPrincipalsResponseDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalResponseDto;
@@ -160,6 +161,21 @@ public class HumanPrincipalController {
         var command = principalMapper.toCommand(request, principalId);
         var deleted = principalService.deletePrincipalGdpr(command);
         var response = principalMapper.toResponseDto(deleted);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get a principal by ID.
+     *
+     * Requires permission: iam.principal:read
+     *
+     * @param principalId the principal ID
+     * @return response DTO containing the principal details
+     */
+    @GetMapping("/{principalId}")
+    public ResponseEntity<GetPrincipalResponseDto> getPrincipal(@PathVariable UUID principalId) {
+        var details = principalService.getPrincipalDetails(principalId);
+        var response = principalMapper.toResponseDto(details);
         return ResponseEntity.ok(response);
     }
 

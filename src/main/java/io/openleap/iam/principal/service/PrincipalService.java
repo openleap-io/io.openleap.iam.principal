@@ -6,6 +6,7 @@ import io.openleap.iam.principal.domain.dto.DeletePrincipalGdprCommand;
 import io.openleap.iam.principal.domain.dto.PrincipalActivated;
 import io.openleap.iam.principal.domain.dto.PrincipalDeactivated;
 import io.openleap.iam.principal.domain.dto.PrincipalDeleted;
+import io.openleap.iam.principal.domain.dto.PrincipalDetails;
 import io.openleap.iam.principal.domain.dto.PrincipalSuspended;
 import io.openleap.iam.principal.domain.dto.SearchPrincipalsQuery;
 import io.openleap.iam.principal.domain.dto.SearchPrincipalsResult;
@@ -563,5 +564,91 @@ public class PrincipalService {
         }
 
         return new SearchPrincipalsResult(items, total, query.page(), pageSize);
+    }
+
+    /**
+     * Gets principal details by ID.
+     *
+     * @param principalId the principal ID
+     * @return the principal details
+     */
+    @Transactional(readOnly = true)
+    public PrincipalDetails getPrincipalDetails(java.util.UUID principalId) {
+        Principal principal = findPrincipalById(principalId)
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + principalId));
+
+        // Human principal specific fields
+        Boolean emailVerified = null;
+        Boolean mfaEnabled = null;
+        java.time.Instant lastLoginAt = null;
+        String displayName = null;
+        String firstName = null;
+        String lastName = null;
+
+        // Service principal specific fields
+        String serviceName = null;
+        List<String> allowedScopes = null;
+        java.time.LocalDate credentialRotationDate = null;
+
+        // System principal specific fields
+        String systemIdentifier = null;
+        String integrationType = null;
+        List<String> allowedOperations = null;
+
+        // Device principal specific fields
+        String deviceIdentifier = null;
+        String deviceType = null;
+        String manufacturer = null;
+        String model = null;
+
+        if (principal instanceof HumanPrincipalEntity human) {
+            emailVerified = human.getEmailVerified();
+            mfaEnabled = human.getMfaEnabled();
+            lastLoginAt = human.getLastLoginAt();
+            displayName = human.getDisplayName();
+            firstName = human.getFirstName();
+            lastName = human.getLastName();
+        } else if (principal instanceof ServicePrincipalEntity service) {
+            serviceName = service.getServiceName();
+            allowedScopes = service.getAllowedScopes();
+            credentialRotationDate = service.getCredentialRotationDate();
+        } else if (principal instanceof SystemPrincipalEntity system) {
+            systemIdentifier = system.getSystemIdentifier();
+            integrationType = system.getIntegrationType() != null ? system.getIntegrationType().name() : null;
+            allowedOperations = system.getAllowedOperations();
+        } else if (principal instanceof DevicePrincipalEntity device) {
+            deviceIdentifier = device.getDeviceIdentifier();
+            deviceType = device.getDeviceType() != null ? device.getDeviceType().name() : null;
+            manufacturer = device.getManufacturer();
+            model = device.getModel();
+        }
+
+        return new PrincipalDetails(
+                principal.getPrincipalId(),
+                principal.getPrincipalType().name(),
+                principal.getUsername(),
+                principal.getEmail(),
+                principal.getStatus().name(),
+                principal.getPrimaryTenantId(),
+                principal.getCreatedAt(),
+                principal.getUpdatedAt(),
+                principal.getContextTags(),
+                emailVerified,
+                mfaEnabled,
+                lastLoginAt,
+                displayName,
+                firstName,
+                lastName,
+                serviceName,
+                allowedScopes,
+                credentialRotationDate,
+                systemIdentifier,
+                integrationType,
+                allowedOperations,
+                deviceIdentifier,
+                deviceType,
+                manufacturer,
+                model
+        );
     }
 }

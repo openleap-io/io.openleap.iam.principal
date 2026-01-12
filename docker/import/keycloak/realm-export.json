@@ -1090,6 +1090,7 @@
         "iam.principal.gdpr:delete",
         "iam.service_principal.credentials:rotate",
         "iam.principal:search",
+        "iam.principal:read",
         "openid",
         "profile",
         "roles",
@@ -2072,6 +2073,38 @@
       "protocolMappers": [
         {
           "id": "55bcf888-9230-4e78-b726-942522799df0",
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "multivalued": "true",
+            "userinfo.token.claim": "false",
+            "user.attribute": "foo",
+            "id.token.claim": "false",
+            "lightweight.claim": "false",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "id": "i682fg71-de81-768d-1cf9-fd66g2911g93",
+      "name": "iam.principal:read",
+      "description": "",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false",
+        "gui.order": "",
+        "consent.screen.text": ""
+      },
+      "protocolMappers": [
+        {
+          "id": "66bcf888-9230-4e78-b726-942522799df1",
           "name": "realm roles",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-usermodel-realm-role-mapper",
