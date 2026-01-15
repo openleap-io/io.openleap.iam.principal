@@ -1,7 +1,19 @@
 package io.openleap.iam.principal.service;
 
 import io.openleap.iam.principal.domain.dto.ActivatePrincipalCommand;
+import io.openleap.iam.principal.domain.dto.AddTenantMembershipCommand;
+import io.openleap.iam.principal.domain.dto.CommonAttributesUpdated;
+import io.openleap.iam.principal.domain.dto.CredentialStatus;
+import io.openleap.iam.principal.domain.dto.CrossTenantPrincipalItem;
+import io.openleap.iam.principal.domain.dto.CrossTenantSearchQuery;
+import io.openleap.iam.principal.domain.dto.CrossTenantSearchResult;
 import io.openleap.iam.principal.domain.dto.DeactivatePrincipalCommand;
+import io.openleap.iam.principal.domain.dto.HeartbeatUpdated;
+import io.openleap.iam.principal.domain.dto.ListTenantMembershipsResult;
+import io.openleap.iam.principal.domain.dto.RemoveTenantMembershipCommand;
+import io.openleap.iam.principal.domain.dto.TenantMembershipAdded;
+import io.openleap.iam.principal.domain.dto.TenantMembershipItem;
+import io.openleap.iam.principal.domain.dto.UpdateHeartbeatCommand;
 import io.openleap.iam.principal.domain.dto.DeletePrincipalGdprCommand;
 import io.openleap.iam.principal.domain.dto.PrincipalActivated;
 import io.openleap.iam.principal.domain.dto.PrincipalDeactivated;
@@ -11,6 +23,7 @@ import io.openleap.iam.principal.domain.dto.PrincipalSuspended;
 import io.openleap.iam.principal.domain.dto.SearchPrincipalsQuery;
 import io.openleap.iam.principal.domain.dto.SearchPrincipalsResult;
 import io.openleap.iam.principal.domain.dto.SuspendPrincipalCommand;
+import io.openleap.iam.principal.domain.dto.UpdateCommonAttributesCommand;
 import io.openleap.iam.principal.domain.entity.*;
 import io.openleap.iam.principal.domain.event.PrincipalActivatedEvent;
 import io.openleap.iam.principal.domain.event.PrincipalDeactivatedEvent;
@@ -650,5 +663,355 @@ public class PrincipalService {
                 manufacturer,
                 model
         );
+    }
+
+    /**
+     * Updates common attributes on a principal.
+     *
+     * @param command the update command
+     * @return the update result
+     */
+    @Transactional
+    public CommonAttributesUpdated updateCommonAttributes(UpdateCommonAttributesCommand command) {
+        // Find principal by ID
+        Principal principal = findPrincipalById(command.principalId())
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
+
+        // Update context_tags
+        principal.setContextTags(command.contextTags());
+
+        // Save based on principal type
+        if (principal instanceof HumanPrincipalEntity) {
+            humanPrincipalRepository.save((HumanPrincipalEntity) principal);
+        } else if (principal instanceof ServicePrincipalEntity) {
+            servicePrincipalRepository.save((ServicePrincipalEntity) principal);
+        } else if (principal instanceof SystemPrincipalEntity) {
+            systemPrincipalRepository.save((SystemPrincipalEntity) principal);
+        } else if (principal instanceof DevicePrincipalEntity) {
+            devicePrincipalRepository.save((DevicePrincipalEntity) principal);
+        }
+
+        return new CommonAttributesUpdated(principal.getPrincipalId());
+    }
+
+    /**
+     * Gets credential status for a service or system principal.
+     *
+     * @param principalId the principal ID
+     * @return the credential status
+     */
+    @Transactional(readOnly = true)
+    public CredentialStatus getCredentialStatus(java.util.UUID principalId) {
+        // Find principal by ID
+        Principal principal = findPrincipalById(principalId)
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + principalId));
+
+        // Validate principal is SERVICE or SYSTEM type
+        if (principal.getPrincipalType() != PrincipalType.SERVICE &&
+            principal.getPrincipalType() != PrincipalType.SYSTEM) {
+            throw new IllegalArgumentException(
+                    "Credential status is only available for SERVICE or SYSTEM principals. Type: " + principal.getPrincipalType());
+        }
+
+        java.time.LocalDate credentialRotationDate = null;
+        Long daysUntilRotation = null;
+        java.time.Instant lastRotatedAt = null;
+        Boolean rotationRequired = null;
+        Boolean hasApiKey = false;
+        Boolean hasCertificate = false;
+
+        if (principal instanceof ServicePrincipalEntity servicePrincipal) {
+            credentialRotationDate = servicePrincipal.getCredentialRotationDate();
+            lastRotatedAt = servicePrincipal.getRotatedAt();
+            hasApiKey = servicePrincipal.getApiKeyHash() != null && !servicePrincipal.getApiKeyHash().isBlank();
+
+            if (credentialRotationDate != null) {
+                daysUntilRotation = java.time.temporal.ChronoUnit.DAYS.between(
+                        java.time.LocalDate.now(), credentialRotationDate);
+                rotationRequired = daysUntilRotation < 0;
+            }
+        } else if (principal instanceof SystemPrincipalEntity systemPrincipal) {
+            hasCertificate = systemPrincipal.getCertificateThumbprint() != null &&
+                            !systemPrincipal.getCertificateThumbprint().isBlank();
+            // System principals don't have rotation dates in current model
+            rotationRequired = false;
+        }
+
+        return new CredentialStatus(
+                principal.getPrincipalId(),
+                principal.getPrincipalType().name(),
+                credentialRotationDate,
+                daysUntilRotation,
+                lastRotatedAt,
+                rotationRequired,
+                hasApiKey,
+                hasCertificate
+        );
+    }
+
+    /**
+     * Lists tenant memberships for a principal.
+     *
+     * @param principalId the principal ID
+     * @param page page number (1-indexed)
+     * @param size page size
+     * @return the paginated list of tenant memberships
+     */
+    @Transactional(readOnly = true)
+    public ListTenantMembershipsResult listTenantMemberships(java.util.UUID principalId, int page, int size) {
+        // Validate principal exists
+        Principal principal = findPrincipalById(principalId)
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + principalId));
+
+        // Get all memberships for the principal
+        List<PrincipalTenantMembershipEntity> memberships = membershipRepository.findByPrincipalId(principalId);
+
+        // Get primary tenant ID for comparison
+        java.util.UUID primaryTenantId = principal.getPrimaryTenantId();
+
+        // Convert to items
+        List<TenantMembershipItem> allItems = memberships.stream()
+                .map(m -> new TenantMembershipItem(
+                        m.getId(),
+                        m.getPrincipalId(),
+                        m.getTenantId(),
+                        m.getValidFrom(),
+                        m.getValidTo(),
+                        m.getStatus().name(),
+                        m.getTenantId().equals(primaryTenantId)
+                ))
+                .toList();
+
+        // Apply pagination
+        int pageIndex = Math.max(0, page - 1);
+        int pageSize = Math.min(Math.max(1, size), 100);
+        int fromIndex = pageIndex * pageSize;
+        int toIndex = Math.min(fromIndex + pageSize, allItems.size());
+
+        List<TenantMembershipItem> pagedItems;
+        if (fromIndex >= allItems.size()) {
+            pagedItems = List.of();
+        } else {
+            pagedItems = allItems.subList(fromIndex, toIndex);
+        }
+
+        return new ListTenantMembershipsResult(pagedItems, allItems.size(), page, pageSize);
+    }
+
+    /**
+     * Adds a tenant membership to a principal.
+     *
+     * @param command the add command
+     * @return the created membership
+     */
+    @Transactional
+    public TenantMembershipAdded addTenantMembership(AddTenantMembershipCommand command) {
+        // Validate principal exists and is ACTIVE
+        Principal principal = findPrincipalById(command.principalId())
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
+
+        if (principal.getStatus() != PrincipalStatus.ACTIVE) {
+            throw new IllegalStateException("Principal is not ACTIVE: " + principal.getStatus());
+        }
+
+        // Check for existing ACTIVE membership
+        var existingMembership = membershipRepository.findByPrincipalIdAndTenantIdAndStatus(
+                command.principalId(), command.tenantId(), MembershipStatus.ACTIVE);
+        if (existingMembership.isPresent()) {
+            throw new IllegalStateException("Active membership already exists for this principal and tenant");
+        }
+
+        // Create new membership
+        PrincipalTenantMembershipEntity membership = new PrincipalTenantMembershipEntity();
+        membership.setPrincipalId(command.principalId());
+        membership.setPrincipalType(principal.getPrincipalType());
+        membership.setTenantId(command.tenantId());
+        membership.setValidFrom(command.validFrom() != null ? command.validFrom() : java.time.LocalDate.now());
+        membership.setValidTo(command.validTo());
+        membership.setStatus(MembershipStatus.ACTIVE);
+        membership.setInvitedBy(command.invitedBy());
+        if (command.invitedBy() != null) {
+            // Try to determine the inviter's principal type
+            var inviter = findPrincipalById(command.invitedBy());
+            if (inviter.isPresent()) {
+                membership.setInvitedByType(inviter.get().getPrincipalType());
+            }
+        }
+
+        PrincipalTenantMembershipEntity savedMembership = membershipRepository.save(membership);
+
+        return new TenantMembershipAdded(
+                savedMembership.getId(),
+                savedMembership.getPrincipalId(),
+                savedMembership.getTenantId(),
+                savedMembership.getValidFrom(),
+                savedMembership.getValidTo(),
+                savedMembership.getStatus().name(),
+                savedMembership.getInvitedBy(),
+                savedMembership.getCreatedAt()
+        );
+    }
+
+    /**
+     * Removes a tenant membership from a principal.
+     *
+     * @param command the remove command
+     */
+    @Transactional
+    public void removeTenantMembership(RemoveTenantMembershipCommand command) {
+        // Validate principal exists
+        Principal principal = findPrincipalById(command.principalId())
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
+
+        // Cannot remove primary tenant membership
+        if (command.tenantId().equals(principal.getPrimaryTenantId())) {
+            throw new IllegalStateException("Cannot remove primary tenant membership. Change primary tenant first.");
+        }
+
+        // Find the membership
+        PrincipalTenantMembershipEntity membership = membershipRepository
+                .findByPrincipalIdAndTenantIdAndStatus(command.principalId(), command.tenantId(), MembershipStatus.ACTIVE)
+                .orElseThrow(() -> new RuntimeException("Active membership not found for principal and tenant"));
+
+        // Update membership to EXPIRED
+        membership.setStatus(MembershipStatus.EXPIRED);
+        if (membership.getValidTo() == null) {
+            membership.setValidTo(java.time.LocalDate.now());
+        }
+
+        membershipRepository.save(membership);
+    }
+
+    /**
+     * Updates a device principal's heartbeat.
+     *
+     * @param command the update command
+     * @return the heartbeat result
+     */
+    @Transactional
+    public HeartbeatUpdated updateHeartbeat(UpdateHeartbeatCommand command) {
+        // Find device principal
+        DevicePrincipalEntity device = devicePrincipalRepository.findById(command.principalId())
+                .orElseThrow(() -> new RuntimeException("Device principal not found: " + command.principalId()));
+
+        // Update heartbeat timestamp
+        java.time.Instant now = java.time.Instant.now();
+        device.setLastHeartbeatAt(now);
+
+        // Update optional fields if provided
+        if (command.firmwareVersion() != null) {
+            device.setFirmwareVersion(command.firmwareVersion());
+        }
+        if (command.locationInfo() != null) {
+            device.setLocationInfo(command.locationInfo());
+        }
+
+        devicePrincipalRepository.save(device);
+
+        return new HeartbeatUpdated(device.getPrincipalId(), now);
+    }
+
+    /**
+     * Searches principals across all tenants (admin only).
+     *
+     * @param query the search query
+     * @return the search results
+     */
+    @Transactional(readOnly = true)
+    public CrossTenantSearchResult searchPrincipalsCrossTenant(CrossTenantSearchQuery query) {
+        List<CrossTenantPrincipalItem> allItems = new ArrayList<>();
+
+        // Search across all principal types
+        PrincipalStatus statusFilter = null;
+        if (query.status() != null && !query.status().isBlank()) {
+            try {
+                statusFilter = PrincipalStatus.valueOf(query.status());
+            } catch (IllegalArgumentException e) {
+                // Ignore invalid status
+            }
+        }
+
+        PrincipalType typeFilter = null;
+        if (query.principalType() != null && !query.principalType().isBlank()) {
+            try {
+                typeFilter = PrincipalType.valueOf(query.principalType());
+            } catch (IllegalArgumentException e) {
+                // Ignore invalid type
+            }
+        }
+
+        // Search human principals
+        if (typeFilter == null || typeFilter == PrincipalType.HUMAN) {
+            for (HumanPrincipalEntity p : humanPrincipalRepository.findAll()) {
+                if (matchesFilter(p, query.search(), statusFilter)) {
+                    allItems.add(new CrossTenantPrincipalItem(
+                            p.getPrincipalId(), p.getPrincipalType().name(),
+                            p.getUsername(), p.getEmail(), p.getStatus().name(), p.getPrimaryTenantId()));
+                }
+            }
+        }
+
+        // Search service principals
+        if (typeFilter == null || typeFilter == PrincipalType.SERVICE) {
+            for (ServicePrincipalEntity p : servicePrincipalRepository.findAll()) {
+                if (matchesFilter(p, query.search(), statusFilter)) {
+                    allItems.add(new CrossTenantPrincipalItem(
+                            p.getPrincipalId(), p.getPrincipalType().name(),
+                            p.getUsername(), p.getEmail(), p.getStatus().name(), p.getPrimaryTenantId()));
+                }
+            }
+        }
+
+        // Search system principals
+        if (typeFilter == null || typeFilter == PrincipalType.SYSTEM) {
+            for (SystemPrincipalEntity p : systemPrincipalRepository.findAll()) {
+                if (matchesFilter(p, query.search(), statusFilter)) {
+                    allItems.add(new CrossTenantPrincipalItem(
+                            p.getPrincipalId(), p.getPrincipalType().name(),
+                            p.getUsername(), p.getEmail(), p.getStatus().name(), p.getPrimaryTenantId()));
+                }
+            }
+        }
+
+        // Search device principals
+        if (typeFilter == null || typeFilter == PrincipalType.DEVICE) {
+            for (DevicePrincipalEntity p : devicePrincipalRepository.findAll()) {
+                if (matchesFilter(p, query.search(), statusFilter)) {
+                    allItems.add(new CrossTenantPrincipalItem(
+                            p.getPrincipalId(), p.getPrincipalType().name(),
+                            p.getUsername(), p.getEmail(), p.getStatus().name(), p.getPrimaryTenantId()));
+                }
+            }
+        }
+
+        // Apply pagination
+        int pageIndex = Math.max(0, query.page() - 1);
+        int pageSize = Math.min(Math.max(1, query.size()), 100);
+        int fromIndex = pageIndex * pageSize;
+        int toIndex = Math.min(fromIndex + pageSize, allItems.size());
+
+        List<CrossTenantPrincipalItem> pagedItems;
+        if (fromIndex >= allItems.size()) {
+            pagedItems = List.of();
+        } else {
+            pagedItems = allItems.subList(fromIndex, toIndex);
+        }
+
+        return new CrossTenantSearchResult(pagedItems, allItems.size(), query.page(), pageSize);
+    }
+
+    private boolean matchesFilter(Principal principal, String search, PrincipalStatus statusFilter) {
+        if (statusFilter != null && principal.getStatus() != statusFilter) {
+            return false;
+        }
+        if (search != null && !search.isBlank()) {
+            String lowerSearch = search.toLowerCase();
+            boolean matchesUsername = principal.getUsername() != null &&
+                    principal.getUsername().toLowerCase().contains(lowerSearch);
+            boolean matchesEmail = principal.getEmail() != null &&
+                    principal.getEmail().toLowerCase().contains(lowerSearch);
+            return matchesUsername || matchesEmail;
+        }
+        return true;
     }
 }

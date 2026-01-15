@@ -2,6 +2,7 @@ package io.openleap.iam.principal.service;
 
 import io.openleap.iam.principal.domain.dto.CreateHumanPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.HumanPrincipalCreated;
+import io.openleap.iam.principal.domain.dto.ProfileDetails;
 import io.openleap.iam.principal.domain.dto.UpdateProfileCommand;
 import io.openleap.iam.principal.domain.dto.ProfileUpdated;
 import io.openleap.iam.principal.domain.event.ProfileUpdatedEvent;
@@ -272,5 +273,32 @@ public class HumanPrincipalService {
         eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
 
         return new ProfileUpdated(principal.getPrincipalId(), changedFields);
+    }
+
+    /**
+     * Gets profile details for a human principal.
+     *
+     * @param principalId the principal ID
+     * @return the profile details
+     */
+    @Transactional(readOnly = true)
+    public ProfileDetails getProfile(java.util.UUID principalId) {
+        // Load principal
+        HumanPrincipalEntity principal = humanPrincipalRepository.findByPrincipalId(principalId)
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + principalId));
+
+        return new ProfileDetails(
+                principal.getPrincipalId(),
+                principal.getFirstName(),
+                principal.getLastName(),
+                principal.getDisplayName(),
+                principal.getPhone(),
+                principal.getLanguage(),
+                principal.getTimezone(),
+                principal.getLocale(),
+                principal.getAvatarUrl(),
+                principal.getBio(),
+                principal.getPreferences()
+        );
     }
 }

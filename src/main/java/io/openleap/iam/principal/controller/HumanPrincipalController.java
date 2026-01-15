@@ -2,18 +2,28 @@ package io.openleap.iam.principal.controller;
 
 import io.openleap.iam.principal.controller.dto.ActivatePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.ActivatePrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.AddTenantMembershipRequestDto;
+import io.openleap.iam.principal.controller.dto.AddTenantMembershipResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.DeactivatePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.DeactivatePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.DeletePrincipalGdprRequestDto;
 import io.openleap.iam.principal.controller.dto.DeletePrincipalGdprResponseDto;
+import io.openleap.iam.principal.controller.dto.GetCredentialStatusResponseDto;
 import io.openleap.iam.principal.controller.dto.GetPrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.GetProfileResponseDto;
+import io.openleap.iam.principal.controller.dto.ListTenantMembershipsResponseDto;
 import io.openleap.iam.principal.controller.dto.SearchPrincipalsResponseDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.UpdateCommonAttributesRequestDto;
+import io.openleap.iam.principal.controller.dto.UpdateCommonAttributesResponseDto;
+import io.openleap.iam.principal.controller.dto.UpdateHeartbeatRequestDto;
+import io.openleap.iam.principal.controller.dto.UpdateHeartbeatResponseDto;
 import io.openleap.iam.principal.controller.dto.UpdateProfileRequestDto;
 import io.openleap.iam.principal.controller.dto.UpdateProfileResponseDto;
+import io.openleap.iam.principal.domain.dto.RemoveTenantMembershipCommand;
 import io.openleap.iam.principal.domain.dto.SearchPrincipalsQuery;
 import io.openleap.iam.principal.domain.entity.PrincipalStatus;
 import io.openleap.iam.principal.domain.entity.PrincipalType;
@@ -68,10 +78,10 @@ public class HumanPrincipalController {
     
     /**
      * Update a human principal profile.
-     * 
-     * Requires permission: Self-update (principal_id matches authenticated principal) 
+     *
+     * Requires permission: Self-update (principal_id matches authenticated principal)
      *                     OR iam.principal.profile:update (admin)
-     * 
+     *
      * @param principalId the principal ID
      * @param request the update request DTO
      * @return response DTO containing the updated profile
@@ -87,12 +97,120 @@ public class HumanPrincipalController {
         var response = principalMapper.toResponseDto(updated, principal);
         return ResponseEntity.ok(response);
     }
-    
+
+    /**
+     * Get a human principal's profile.
+     *
+     * Requires permission: Self-read (principal_id matches authenticated principal)
+     *                     OR iam.principal.profile:read (admin)
+     *
+     * @param principalId the principal ID
+     * @return response DTO containing the profile details
+     */
+    @GetMapping("/{principalId}/profile")
+    public ResponseEntity<GetProfileResponseDto> getProfile(@PathVariable UUID principalId) {
+        var details = humanPrincipalService.getProfile(principalId);
+        var response = principalMapper.toResponseDto(details);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get credential status for a service or system principal.
+     *
+     * Requires permission: iam.principal.credentials:read
+     *
+     * @param principalId the principal ID
+     * @return response DTO containing the credential status
+     */
+    @GetMapping("/{principalId}/credentials/status")
+    public ResponseEntity<GetCredentialStatusResponseDto> getCredentialStatus(@PathVariable UUID principalId) {
+        var status = principalService.getCredentialStatus(principalId);
+        var response = principalMapper.toResponseDto(status);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * List tenant memberships for a principal.
+     *
+     * Requires permission: iam.principal.tenants:read
+     *
+     * @param principalId the principal ID
+     * @param page page number (1-indexed, default 1)
+     * @param size page size (default 50, max 100)
+     * @return response DTO containing the paginated list of memberships
+     */
+    @GetMapping("/{principalId}/tenants")
+    public ResponseEntity<ListTenantMembershipsResponseDto> listTenantMemberships(
+            @PathVariable UUID principalId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        var result = principalService.listTenantMemberships(principalId, page, size);
+        var response = principalMapper.toResponseDto(result);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Add a tenant membership for a principal.
+     *
+     * Requires permission: iam.principal.tenant:assign
+     *
+     * @param principalId the principal ID
+     * @param request the add tenant membership request DTO
+     * @return response DTO containing the membership details
+     */
+    @PostMapping("/{principalId}/tenants")
+    public ResponseEntity<AddTenantMembershipResponseDto> addTenantMembership(
+            @PathVariable UUID principalId,
+            @Valid @RequestBody AddTenantMembershipRequestDto request) {
+        // For now, use null as invitedBy - in production this would come from the authenticated user
+        var command = principalMapper.toCommand(request, principalId, null);
+        var added = principalService.addTenantMembership(command);
+        var response = principalMapper.toResponseDto(added);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Remove a tenant membership for a principal.
+     *
+     * Requires permission: iam.principal.tenant:remove
+     *
+     * @param principalId the principal ID
+     * @param tenantId the tenant ID
+     * @return no content on success
+     */
+    @DeleteMapping("/{principalId}/tenants/{tenantId}")
+    public ResponseEntity<Void> removeTenantMembership(
+            @PathVariable UUID principalId,
+            @PathVariable UUID tenantId) {
+        var command = new RemoveTenantMembershipCommand(principalId, tenantId);
+        principalService.removeTenantMembership(command);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Update heartbeat for a device principal.
+     *
+     * Requires permission: iam.device_principal:heartbeat
+     *
+     * @param principalId the principal ID
+     * @param request the heartbeat update request DTO
+     * @return response DTO containing the heartbeat timestamp
+     */
+    @PostMapping("/{principalId}/heartbeat")
+    public ResponseEntity<UpdateHeartbeatResponseDto> updateHeartbeat(
+            @PathVariable UUID principalId,
+            @Valid @RequestBody UpdateHeartbeatRequestDto request) {
+        var command = principalMapper.toCommand(request, principalId);
+        var updated = principalService.updateHeartbeat(command);
+        var response = principalMapper.toResponseDto(updated);
+        return ResponseEntity.ok(response);
+    }
+
     /**
      * Activate a principal.
-     * 
+     *
      * Requires permission: iam.principal:activate
-     * 
+     *
      * @param principalId the principal ID
      * @param request the activation request DTO
      * @return response DTO containing the principal_id and status
@@ -176,6 +294,27 @@ public class HumanPrincipalController {
     public ResponseEntity<GetPrincipalResponseDto> getPrincipal(@PathVariable UUID principalId) {
         var details = principalService.getPrincipalDetails(principalId);
         var response = principalMapper.toResponseDto(details);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Update common attributes on a principal.
+     *
+     * Requires permission: iam.principal:update
+     *
+     * @param principalId the principal ID
+     * @param request the update request DTO
+     * @return response DTO containing the updated attributes
+     */
+    @PatchMapping("/{principalId}")
+    public ResponseEntity<UpdateCommonAttributesResponseDto> updateCommonAttributes(
+            @PathVariable UUID principalId,
+            @Valid @RequestBody UpdateCommonAttributesRequestDto request) {
+        var command = principalMapper.toCommand(request, principalId);
+        var updated = principalService.updateCommonAttributes(command);
+        var principal = principalService.findPrincipalById(principalId)
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + principalId));
+        var response = principalMapper.toResponseDto(updated, principal);
         return ResponseEntity.ok(response);
     }
 

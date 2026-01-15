@@ -6,11 +6,21 @@ import io.openleap.iam.principal.controller.dto.DeactivatePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.DeactivatePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.DeletePrincipalGdprRequestDto;
 import io.openleap.iam.principal.controller.dto.DeletePrincipalGdprResponseDto;
+import io.openleap.iam.principal.controller.dto.AddTenantMembershipRequestDto;
+import io.openleap.iam.principal.controller.dto.AddTenantMembershipResponseDto;
+import io.openleap.iam.principal.controller.dto.CrossTenantSearchResponseDto;
+import io.openleap.iam.principal.controller.dto.GetCredentialStatusResponseDto;
 import io.openleap.iam.principal.controller.dto.GetPrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.GetProfileResponseDto;
+import io.openleap.iam.principal.controller.dto.ListTenantMembershipsResponseDto;
+import io.openleap.iam.principal.controller.dto.UpdateHeartbeatRequestDto;
+import io.openleap.iam.principal.controller.dto.UpdateHeartbeatResponseDto;
 import io.openleap.iam.principal.controller.dto.RotateCredentialsRequestDto;
 import io.openleap.iam.principal.controller.dto.RotateCredentialsResponseDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.SuspendPrincipalResponseDto;
+import io.openleap.iam.principal.controller.dto.UpdateCommonAttributesRequestDto;
+import io.openleap.iam.principal.controller.dto.UpdateCommonAttributesResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateDevicePrincipalRequestDto;
 import io.openleap.iam.principal.controller.dto.CreateDevicePrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.CreateHumanPrincipalRequestDto;
@@ -22,13 +32,23 @@ import io.openleap.iam.principal.controller.dto.CreateSystemPrincipalResponseDto
 import io.openleap.iam.principal.controller.dto.UpdateProfileRequestDto;
 import io.openleap.iam.principal.controller.dto.UpdateProfileResponseDto;
 import io.openleap.iam.principal.domain.dto.ActivatePrincipalCommand;
+import io.openleap.iam.principal.domain.dto.AddTenantMembershipCommand;
+import io.openleap.iam.principal.domain.dto.CommonAttributesUpdated;
+import io.openleap.iam.principal.domain.dto.CredentialStatus;
 import io.openleap.iam.principal.domain.dto.CreateDevicePrincipalCommand;
+import io.openleap.iam.principal.domain.dto.CrossTenantSearchResult;
+import io.openleap.iam.principal.domain.dto.HeartbeatUpdated;
+import io.openleap.iam.principal.domain.dto.ListTenantMembershipsResult;
+import io.openleap.iam.principal.domain.dto.TenantMembershipAdded;
+import io.openleap.iam.principal.domain.dto.UpdateHeartbeatCommand;
 import io.openleap.iam.principal.domain.dto.CreateHumanPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateServicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CreateSystemPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.DeactivatePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CredentialsRotated;
 import io.openleap.iam.principal.domain.dto.DeletePrincipalGdprCommand;
+import io.openleap.iam.principal.domain.dto.ProfileDetails;
+import io.openleap.iam.principal.domain.dto.UpdateCommonAttributesCommand;
 import io.openleap.iam.principal.domain.dto.DevicePrincipalCreated;
 import io.openleap.iam.principal.domain.dto.HumanPrincipalCreated;
 import io.openleap.iam.principal.domain.dto.PrincipalActivated;
@@ -43,6 +63,7 @@ import io.openleap.iam.principal.domain.dto.SuspendPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.SystemPrincipalCreated;
 import io.openleap.iam.principal.domain.dto.UpdateProfileCommand;
 import io.openleap.iam.principal.domain.entity.HumanPrincipalEntity;
+import io.openleap.iam.principal.domain.entity.Principal;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -352,6 +373,174 @@ public interface PrincipalMapper {
         dto.setDeviceType(details.deviceType());
         dto.setManufacturer(details.manufacturer());
         dto.setModel(details.model());
+
+        return dto;
+    }
+
+    /**
+     * Maps controller request DTO to service domain command for common attributes update.
+     * Note: This requires custom implementation due to principalId parameter.
+     */
+    default UpdateCommonAttributesCommand toCommand(UpdateCommonAttributesRequestDto dto, java.util.UUID principalId) {
+        return new UpdateCommonAttributesCommand(
+                principalId,
+                dto.getContextTags()
+        );
+    }
+
+    /**
+     * Maps service domain result and entity to controller response DTO for common attributes update.
+     */
+    default UpdateCommonAttributesResponseDto toResponseDto(CommonAttributesUpdated updated, Principal principal) {
+        UpdateCommonAttributesResponseDto dto = new UpdateCommonAttributesResponseDto();
+        dto.setPrincipalId(principal.getPrincipalId().toString());
+        dto.setContextTags(principal.getContextTags());
+        dto.setUpdatedAt(principal.getUpdatedAt() != null ? principal.getUpdatedAt().toString() : null);
+        return dto;
+    }
+
+    /**
+     * Maps service domain result to controller response DTO for get profile.
+     */
+    default GetProfileResponseDto toResponseDto(ProfileDetails details) {
+        GetProfileResponseDto dto = new GetProfileResponseDto();
+        dto.setPrincipalId(details.principalId().toString());
+        dto.setFirstName(details.firstName());
+        dto.setLastName(details.lastName());
+        dto.setDisplayName(details.displayName());
+        dto.setPhone(details.phone());
+        dto.setLanguage(details.language());
+        dto.setTimezone(details.timezone());
+        dto.setLocale(details.locale());
+        dto.setAvatarUrl(details.avatarUrl());
+        dto.setBio(details.bio());
+        dto.setPreferences(details.preferences());
+        return dto;
+    }
+
+    /**
+     * Maps service domain result to controller response DTO for credential status.
+     */
+    default GetCredentialStatusResponseDto toResponseDto(CredentialStatus status) {
+        GetCredentialStatusResponseDto dto = new GetCredentialStatusResponseDto();
+        dto.setPrincipalId(status.principalId().toString());
+        dto.setPrincipalType(status.principalType());
+        dto.setCredentialRotationDate(status.credentialRotationDate() != null ? status.credentialRotationDate().toString() : null);
+        dto.setDaysUntilRotation(status.daysUntilRotation());
+        dto.setLastRotatedAt(status.lastRotatedAt() != null ? status.lastRotatedAt().toString() : null);
+        dto.setRotationRequired(status.rotationRequired());
+        dto.setHasApiKey(status.hasApiKey());
+        dto.setHasCertificate(status.hasCertificate());
+        return dto;
+    }
+
+    /**
+     * Maps service domain result to controller response DTO for list tenant memberships.
+     */
+    default ListTenantMembershipsResponseDto toResponseDto(ListTenantMembershipsResult result) {
+        ListTenantMembershipsResponseDto dto = new ListTenantMembershipsResponseDto();
+        dto.setTotal(result.total());
+        dto.setPage(result.page());
+        dto.setSize(result.size());
+
+        var items = result.items().stream()
+                .map(item -> {
+                    var itemDto = new ListTenantMembershipsResponseDto.TenantMembershipItemDto();
+                    itemDto.setId(item.id().toString());
+                    itemDto.setPrincipalId(item.principalId().toString());
+                    itemDto.setTenantId(item.tenantId().toString());
+                    itemDto.setValidFrom(item.validFrom() != null ? item.validFrom().toString() : null);
+                    itemDto.setValidTo(item.validTo() != null ? item.validTo().toString() : null);
+                    itemDto.setStatus(item.status());
+                    itemDto.setIsPrimary(item.isPrimary());
+                    return itemDto;
+                })
+                .toList();
+        dto.setItems(items);
+
+        return dto;
+    }
+
+    /**
+     * Maps request DTO to command for adding tenant membership.
+     */
+    default AddTenantMembershipCommand toCommand(AddTenantMembershipRequestDto dto, java.util.UUID principalId, java.util.UUID invitedBy) {
+        java.time.LocalDate validFrom = null;
+        java.time.LocalDate validTo = null;
+        if (dto.getValidFrom() != null && !dto.getValidFrom().isBlank()) {
+            validFrom = java.time.LocalDate.parse(dto.getValidFrom());
+        }
+        if (dto.getValidTo() != null && !dto.getValidTo().isBlank()) {
+            validTo = java.time.LocalDate.parse(dto.getValidTo());
+        }
+        return new AddTenantMembershipCommand(
+                principalId,
+                java.util.UUID.fromString(dto.getTenantId()),
+                validFrom,
+                validTo,
+                invitedBy
+        );
+    }
+
+    /**
+     * Maps result to response DTO for adding tenant membership.
+     */
+    default AddTenantMembershipResponseDto toResponseDto(TenantMembershipAdded added) {
+        AddTenantMembershipResponseDto dto = new AddTenantMembershipResponseDto();
+        dto.setId(added.id().toString());
+        dto.setPrincipalId(added.principalId().toString());
+        dto.setTenantId(added.tenantId().toString());
+        dto.setValidFrom(added.validFrom() != null ? added.validFrom().toString() : null);
+        dto.setValidTo(added.validTo() != null ? added.validTo().toString() : null);
+        dto.setStatus(added.status());
+        dto.setInvitedBy(added.invitedBy() != null ? added.invitedBy().toString() : null);
+        dto.setCreatedAt(added.createdAt() != null ? added.createdAt().toString() : null);
+        return dto;
+    }
+
+    /**
+     * Maps request DTO to command for updating heartbeat.
+     */
+    default UpdateHeartbeatCommand toCommand(UpdateHeartbeatRequestDto dto, java.util.UUID principalId) {
+        return new UpdateHeartbeatCommand(
+                principalId,
+                dto.getFirmwareVersion(),
+                dto.getLocationInfo()
+        );
+    }
+
+    /**
+     * Maps result to response DTO for updating heartbeat.
+     */
+    default UpdateHeartbeatResponseDto toResponseDto(HeartbeatUpdated updated) {
+        UpdateHeartbeatResponseDto dto = new UpdateHeartbeatResponseDto();
+        dto.setPrincipalId(updated.principalId().toString());
+        dto.setLastHeartbeatAt(updated.lastHeartbeatAt() != null ? updated.lastHeartbeatAt().toString() : null);
+        return dto;
+    }
+
+    /**
+     * Maps result to response DTO for cross-tenant search.
+     */
+    default CrossTenantSearchResponseDto toResponseDto(CrossTenantSearchResult result) {
+        CrossTenantSearchResponseDto dto = new CrossTenantSearchResponseDto();
+        dto.setTotal(result.total());
+        dto.setPage(result.page());
+        dto.setSize(result.size());
+
+        var items = result.items().stream()
+                .map(item -> {
+                    var itemDto = new CrossTenantSearchResponseDto.CrossTenantPrincipalItemDto();
+                    itemDto.setPrincipalId(item.principalId().toString());
+                    itemDto.setPrincipalType(item.principalType());
+                    itemDto.setUsername(item.username());
+                    itemDto.setEmail(item.email());
+                    itemDto.setStatus(item.status());
+                    itemDto.setPrimaryTenantId(item.primaryTenantId() != null ? item.primaryTenantId().toString() : null);
+                    return itemDto;
+                })
+                .toList();
+        dto.setItems(items);
 
         return dto;
     }

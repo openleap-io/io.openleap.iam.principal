@@ -59,7 +59,6 @@ public class SystemPrincipalService {
         }
 
         // Validate certificate thumbprint is provided (BR-SYS-002: Must have certificate OR API key)
-        // For UC-003, we require certificate thumbprint
         if (command.certificateThumbprint() == null || command.certificateThumbprint().isBlank()) {
             throw new IllegalArgumentException("Certificate thumbprint is required for system principal");
         }

@@ -25,14 +25,36 @@ public class SecurityConfig {
                                         .requestMatchers("/api/v1/iam/principals/service").hasAuthority("ROLE_iam.service_principal:create")
                                         .requestMatchers("/api/v1/iam/principals/system").hasAuthority("ROLE_iam.system_principal:create")
                                         .requestMatchers("/api/v1/iam/principals/device").hasAuthority("ROLE_iam.device_principal:create")
-                                        .requestMatchers("/api/v1/iam/principals/*/profile").hasAuthority("ROLE_iam.principal.profile:update")
+                                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/iam/principals/*/profile").hasAuthority("ROLE_iam.principal.profile:read")
+                                        .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/v1/iam/principals/*/profile").hasAuthority("ROLE_iam.principal.profile:update")
+                                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/iam/principals/*/credentials/status").hasAuthority("ROLE_iam.principal.credentials:read")
+                                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/iam/principals/*/tenants").hasAuthority("ROLE_iam.principal.tenants:read")
+                                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/iam/principals/*/tenants").hasAuthority("ROLE_iam.principal.tenant:assign")
+                                        .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/v1/iam/principals/*/tenants/*").hasAuthority("ROLE_iam.principal.tenant:remove")
+                                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/iam/principals/*/heartbeat").hasAuthority("ROLE_iam.device_principal:heartbeat")
                                         .requestMatchers("/api/v1/iam/principals/*/activate").hasAuthority("ROLE_iam.principal.profile:update")
                                         .requestMatchers("/api/v1/iam/principals/*/suspend").hasAuthority("ROLE_iam.principal:suspend")
                                         .requestMatchers("/api/v1/iam/principals/*/deactivate").hasAuthority("ROLE_iam.principal:deactivate")
                                         .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/v1/iam/principals/*/gdpr").hasAuthority("ROLE_iam.principal.gdpr:delete")
                                         .requestMatchers("/api/v1/iam/principals/*/rotate-credentials").hasAuthority("ROLE_iam.service_principal.credentials:rotate")
                                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/iam/principals/*").hasAuthority("ROLE_iam.principal:read")
+                                        .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/v1/iam/principals/*").hasAuthority("ROLE_iam.principal:update")
                                         )
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
+                        jwt.jwtAuthenticationConverter(customJwtAuthenticationConverter())));
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
+    public SecurityFilterChain iamAdminFilterChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/api/v1/iam/admin/**")
+                .authorizeHttpRequests(
+                        authorize ->
+                                authorize
+                                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/iam/admin/principals").hasAuthority("ROLE_iam.admin:cross_tenant")
+                )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
                         jwt.jwtAuthenticationConverter(customJwtAuthenticationConverter())));
 
