@@ -1,14 +1,17 @@
 # IAM core concepts
 
 <!-- TOC -->
+
 * [IAM core concepts](#iam-core-concepts)
-  * [Roles and responsibilities](#roles-and-responsibilities)
-  * [Tenant creation and provisioning](#tenant-creation-and-provisioning)
-  * [Principal creation and provisioning](#principal-creation-and-provisioning)
-  * [Authentication and authorization flow](#authentication-and-authorization-flow)
+    * [Roles and responsibilities](#roles-and-responsibilities)
+    * [Tenant creation and provisioning](#tenant-creation-and-provisioning)
+    * [Principal creation and provisioning](#principal-creation-and-provisioning)
+    * [Authentication and authorization flow](#authentication-and-authorization-flow)
+
 <!-- TOC -->
 
 ## Roles and responsibilities
+
 General domain and conceptual rules:
 
 1. Authentication and Authorization are separate concerns!
@@ -24,13 +27,11 @@ Decoupling domain rules:
 3. authorization roles can be created without any principals assigned.
 4. authorization roles can be created without any tenants assigned.
 
-
-
-
 ## Tenant creation and provisioning
 
 On the tenant domain we have a `default` tenant that represents and holds all principals that does not provide the
-default tenant on principal creation. When creating a principal there is `defaultTenantId` and it is optional. When a new
+default tenant on principal creation. When creating a principal there is `defaultTenantId` and it is optional. When a
+new
 tenant is created, the following sequence of events occurs:
 
 ```mermaid
@@ -90,12 +91,19 @@ sequenceDiagram
     PRINCIPAL ->> EXT: Principal Created Successfully
 ```
 
+The idea behind `defaultTenantId` making it optional is to provide a more convenient way to onboard new principals into
+the system without
+requiring the tenant information upfront.
+
+The `defaultTenantId` is only part of this domain again to provide more convenience during principal creation, so that
+it is not required to make another call to assign a tenant after the principal is created.
 
 ## Authentication and authorization flow
 
 User wants to access some protected resource in the Application. The Application is configured to use Keycloak as
 the Authorization Server (AS). The principals are synced with Keycloak. The following sequence diagram illustrates the
 authentication and authorization flow:
+
 ```mermaid
 sequenceDiagram
     actor U
@@ -123,8 +131,8 @@ sequenceDiagram
     deactivate AS
     G -->> U: 302 Redirect to Request Protected Resource
     U ->> G: 6. Request Protected Resource
-    note over G : At this point the user is only authenticated, <br/> not yet authorized to access the resource, <br/> so the Application needs to check authorization.
-    note over G: JWT token contains authentication claims  <br/> + roles only if it is admin user
+    note over G: At this point the user is only authenticated, <br/> not yet authorized to access the resource, <br/> so the Application needs to check authorization.
+    note over G: JWT token contains authentication claims <br/> + roles only if it is admin user
     opt list of tenants for selection
         note over G: Optional: Application calls for user tenant info <br/> if needed for authorization decision
         G ->> T: GET /tenant/info + token
@@ -132,5 +140,5 @@ sequenceDiagram
         note over G: Application/User selects tenant for <br/> the session if user has multiple tenant memberships
     end
     note over G: If tenant is not provided the system uses the default tenant for authorization check
-    G  ->> AuthZ: POST /authz/check + token + resource + action + tenant (if applicable)
+    G ->> AuthZ: POST /authz/check + token + resource + action + tenant (if applicable)
 ```
