@@ -10,12 +10,12 @@ import java.util.UUID;
  * Domain DTO for principal details.
  */
 public record PrincipalDetails(
-    UUID principalId,
+    UUID id,
     String principalType,
     String username,
     String email,
     String status,
-    UUID primaryTenantId,
+    UUID defaultTenantId,
     Instant createdAt,
     Instant updatedAt,
     Map<String, Object> contextTags,

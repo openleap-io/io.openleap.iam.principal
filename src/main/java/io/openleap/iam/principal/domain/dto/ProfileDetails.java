@@ -10,7 +10,7 @@ public record ProfileDetails(
     /**
      * Principal ID
      */
-    UUID principalId,
+    UUID id,
 
     /**
      * First name

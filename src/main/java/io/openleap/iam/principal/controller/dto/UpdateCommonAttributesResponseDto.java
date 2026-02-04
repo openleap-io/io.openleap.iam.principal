@@ -12,8 +12,8 @@ public class UpdateCommonAttributesResponseDto {
     /**
      * Principal ID that was updated
      */
-    @JsonProperty("principal_id")
-    private String principalId;
+    @JsonProperty("id")
+    private String id;
 
     /**
      * Updated context tags
@@ -29,12 +29,12 @@ public class UpdateCommonAttributesResponseDto {
 
     // Getters and Setters
 
-    public String getPrincipalId() {
-        return principalId;
+    public String getId() {
+        return id;
     }
 
-    public void setPrincipalId(String principalId) {
-        this.principalId = principalId;
+    public void setId(String id) {
+        this.id = id;
     }
 
     public Map<String, Object> getContextTags() {

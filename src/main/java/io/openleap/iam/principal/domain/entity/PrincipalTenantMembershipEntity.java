@@ -1,22 +1,16 @@
 package io.openleap.iam.principal.domain.entity;
 
+import io.openleap.common.persistence.entity.AuditableEntity;
 import jakarta.persistence.*;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
-@Entity
-@Table(name = "principal_tenant_memberships", schema = "iam_principal")
+//TODO: To be moved to iam.tenant service
+//@Entity
+//@Table(name = "principal_tenant_memberships", schema = "iam_principal")
 public class PrincipalTenantMembershipEntity {
-    
-    /**
-     * Unique identifier (PK, generated)
-     */
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", nullable = false, updatable = false)
-    private UUID id;
     
     /**
      * Principal reference (references any principal table)
@@ -68,18 +62,12 @@ public class PrincipalTenantMembershipEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "invited_by_type", length = 50)
     private PrincipalType invitedByType;
-    
-    /**
-     * Creation time (auto-generated)
-     */
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
-    
+
     @PrePersist
     protected void onCreate() {
-        if (createdAt == null) {
-            createdAt = Instant.now();
-        }
+//        if (getCreatedAt() == null) {
+//            setCreatedAt(Instant.now());
+//        }
         if (status == null) {
             status = MembershipStatus.ACTIVE;
         }
@@ -89,14 +77,7 @@ public class PrincipalTenantMembershipEntity {
     }
     
     // Getters and Setters
-    
-    public UUID getId() {
-        return id;
-    }
-    
-    public void setId(UUID id) {
-        this.id = id;
-    }
+
     
     public UUID getPrincipalId() {
         return principalId;
@@ -161,13 +142,6 @@ public class PrincipalTenantMembershipEntity {
     public void setInvitedByType(PrincipalType invitedByType) {
         this.invitedByType = invitedByType;
     }
-    
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-    
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
+
 }
 

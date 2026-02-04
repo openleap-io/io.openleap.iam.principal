@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.HashMap;
@@ -26,6 +27,7 @@ public class KeycloakWebService implements KeycloakService {
         this.keycloakClient = keycloakClient;
     }
 
+    @Transactional
     @Override
     public String createUser(User user) {
         try {
@@ -54,7 +56,7 @@ public class KeycloakWebService implements KeycloakService {
             throw new RuntimeException("Failed to create user", e);
         }
     }
-    
+
     @Override
     public void updateUser(String keycloakUserId, User user) {
         try {
@@ -70,14 +72,14 @@ public class KeycloakWebService implements KeycloakService {
             }
             // emailVerified is a primitive boolean, so always include it
             userData.put("emailVerified", user.emailVerified());
-            
+
             keycloakClient.updateUser(keycloakUserId, userData);
         } catch (Exception e) {
             logger.error("Error updating user in Keycloak", e);
             throw new RuntimeException("Failed to update user in Keycloak", e);
         }
     }
-    
+
     @Override
     public String createClient(String clientId, List<String> allowedScopes) {
         try {
@@ -90,23 +92,23 @@ public class KeycloakWebService implements KeycloakService {
             clientData.put("directAccessGrantsEnabled", false);
             clientData.put("publicClient", false);
             clientData.put("protocol", "openid-connect");
-            
+
             // Set default client scopes if provided
             if (allowedScopes != null && !allowedScopes.isEmpty()) {
                 clientData.put("defaultClientScopes", allowedScopes);
             }
-            
+
             // Create the client
             ResponseEntity<Map<String, Object>> response = keycloakClient.createClient(clientData);
-            
+
             if (response.getStatusCode() != HttpStatus.CREATED && response.getStatusCode() != HttpStatus.NO_CONTENT) {
                 throw new RuntimeException("Failed to create client in Keycloak: " + response.getStatusCode());
             }
-            
+
             // Keycloak doesn't return the secret in the create response, so we need to fetch it
             logger.debug("Client created, fetching client secret for: {}", clientId);
             return fetchClientSecret(clientId);
-            
+
         } catch (HttpClientErrorException e) {
             if (e.getStatusCode() == HttpStatus.CONFLICT) {
                 throw new RuntimeException("Client already exists: " + clientId, e);
@@ -118,20 +120,20 @@ public class KeycloakWebService implements KeycloakService {
             throw new RuntimeException("Failed to create client in Keycloak", e);
         }
     }
-    
+
     @Override
     public void updateClient(String clientId, boolean enabled) {
         try {
             Map<String, Object> clientData = new HashMap<>();
             clientData.put("enabled", enabled);
-            
+
             keycloakClient.updateClient(clientId, clientData);
         } catch (Exception e) {
             logger.error("Error updating client in Keycloak", e);
             throw new RuntimeException("Failed to update client in Keycloak", e);
         }
     }
-    
+
     private String fetchClientSecret(String clientId) {
         try {
             ResponseEntity<Map<String, Object>> secretResponse = keycloakClient.getClientSecret(clientId);

@@ -12,8 +12,8 @@ public class GetProfileResponseDto {
     /**
      * Principal ID
      */
-    @JsonProperty("principal_id")
-    private String principalId;
+    @JsonProperty("id")
+    private String id;
 
     /**
      * First name
@@ -77,12 +77,12 @@ public class GetProfileResponseDto {
 
     // Getters and Setters
 
-    public String getPrincipalId() {
-        return principalId;
+    public String getId() {
+        return id;
     }
 
-    public void setPrincipalId(String principalId) {
-        this.principalId = principalId;
+    public void setId(String id) {
+        this.id = id;
     }
 
     public String getFirstName() {

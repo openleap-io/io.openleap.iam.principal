@@ -127,7 +127,7 @@ class PrincipalExceptionHandlerTest {
             // then
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
             assertThat(response.getBody()).containsEntry("error", "InactivePrincipalFound");
-            assertThat(response.getBody()).containsEntry("principalId", principalId);
+            assertThat(response.getBody()).containsEntry("id", principalId);
             assertThat(response.getBody().get("message")).asString().contains("john@example.com");
         }
     }

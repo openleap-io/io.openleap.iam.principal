@@ -10,7 +10,7 @@ public record UpdateHeartbeatCommand(
     /**
      * Device principal ID
      */
-    UUID principalId,
+    UUID id,
 
     /**
      * Optional firmware version update

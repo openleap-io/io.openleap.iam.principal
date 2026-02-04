@@ -5,7 +5,7 @@ import java.util.UUID;
 
 public class CreateServicePrincipalResponseDto {
     
-    private UUID principalId;
+    private UUID id;
     private String principalType;
     private String username;
     private String status;
@@ -18,12 +18,12 @@ public class CreateServicePrincipalResponseDto {
     public CreateServicePrincipalResponseDto() {
     }
     
-    public UUID getPrincipalId() {
-        return principalId;
+    public UUID getId() {
+        return id;
     }
-    
-    public void setPrincipalId(UUID principalId) {
-        this.principalId = principalId;
+
+    public void setId(UUID id) {
+        this.id = id;
     }
     
     public String getPrincipalType() {

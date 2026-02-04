@@ -10,7 +10,7 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class UpdateProfileResponseDto {
     
-    private String principalId;
+    private String id;
     private String firstName;
     private String lastName;
     private String displayName;
@@ -26,12 +26,12 @@ public class UpdateProfileResponseDto {
     
     // Getters and Setters
     
-    public String getPrincipalId() {
-        return principalId;
+    public String getId() {
+        return id;
     }
     
-    public void setPrincipalId(String principalId) {
-        this.principalId = principalId;
+    public void setId(String id) {
+        this.id = id;
     }
     
     public String getFirstName() {

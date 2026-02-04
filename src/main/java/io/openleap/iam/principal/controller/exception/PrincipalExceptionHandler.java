@@ -51,7 +51,7 @@ public class PrincipalExceptionHandler {
         Map<String, Object> body = new HashMap<>();
         body.put("error", "InactivePrincipalFound");
         body.put("message", ex.getMessage());
-        body.put("principalId", ex.getPrincipalId());
+        body.put("id", ex.getPrincipalId());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
     

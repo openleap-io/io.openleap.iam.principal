@@ -9,6 +9,6 @@ public record PrincipalActivated(
     /**
      * Principal ID that was activated
      */
-    UUID principalId
+    UUID id
 ) {
 }

@@ -9,6 +9,6 @@ public record PrincipalDeactivated(
     /**
      * Principal ID that was deactivated
      */
-    UUID principalId
+    UUID id
 ) {
 }

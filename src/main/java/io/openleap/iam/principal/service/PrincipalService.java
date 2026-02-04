@@ -1,43 +1,21 @@
 package io.openleap.iam.principal.service;
 
-import io.openleap.iam.principal.domain.dto.ActivatePrincipalCommand;
-import io.openleap.iam.principal.domain.dto.AddTenantMembershipCommand;
-import io.openleap.iam.principal.domain.dto.CommonAttributesUpdated;
-import io.openleap.iam.principal.domain.dto.CredentialStatus;
-import io.openleap.iam.principal.domain.dto.CrossTenantPrincipalItem;
-import io.openleap.iam.principal.domain.dto.CrossTenantSearchQuery;
-import io.openleap.iam.principal.domain.dto.CrossTenantSearchResult;
-import io.openleap.iam.principal.domain.dto.DeactivatePrincipalCommand;
-import io.openleap.iam.principal.domain.dto.HeartbeatUpdated;
-import io.openleap.iam.principal.domain.dto.ListTenantMembershipsResult;
-import io.openleap.iam.principal.domain.dto.RemoveTenantMembershipCommand;
-import io.openleap.iam.principal.domain.dto.TenantMembershipAdded;
-import io.openleap.iam.principal.domain.dto.TenantMembershipItem;
-import io.openleap.iam.principal.domain.dto.UpdateHeartbeatCommand;
-import io.openleap.iam.principal.domain.dto.DeletePrincipalGdprCommand;
-import io.openleap.iam.principal.domain.dto.PrincipalActivated;
-import io.openleap.iam.principal.domain.dto.PrincipalDeactivated;
-import io.openleap.iam.principal.domain.dto.PrincipalDeleted;
-import io.openleap.iam.principal.domain.dto.PrincipalDetails;
-import io.openleap.iam.principal.domain.dto.PrincipalSuspended;
-import io.openleap.iam.principal.domain.dto.SearchPrincipalsQuery;
-import io.openleap.iam.principal.domain.dto.SearchPrincipalsResult;
-import io.openleap.iam.principal.domain.dto.SuspendPrincipalCommand;
-import io.openleap.iam.principal.domain.dto.UpdateCommonAttributesCommand;
+import io.openleap.common.messaging.event.EventPublisher;
+import io.openleap.iam.principal.domain.dto.*;
 import io.openleap.iam.principal.domain.entity.*;
 import io.openleap.iam.principal.domain.event.PrincipalActivatedEvent;
 import io.openleap.iam.principal.domain.event.PrincipalDeactivatedEvent;
 import io.openleap.iam.principal.domain.event.PrincipalDeletedEvent;
 import io.openleap.iam.principal.domain.event.PrincipalSuspendedEvent;
+import io.openleap.iam.principal.domain.mapper.PrincipalEventMapper;
+import io.openleap.iam.principal.domain.mapper.ServicePrincipalMapper;
+import io.openleap.iam.principal.domain.mapper.SystemPrincipalMapper;
 import io.openleap.iam.principal.repository.DevicePrincipalRepository;
 import io.openleap.iam.principal.repository.HumanPrincipalRepository;
-import io.openleap.iam.principal.repository.PrincipalTenantMembershipRepository;
 import io.openleap.iam.principal.repository.ServicePrincipalRepository;
 import io.openleap.iam.principal.repository.SystemPrincipalRepository;
 import io.openleap.iam.principal.service.keycloak.KeycloakService;
 import io.openleap.iam.principal.service.keycloak.dto.User;
-import io.openleap.starter.core.messaging.RoutingKey;
-import io.openleap.starter.core.messaging.event.EventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -47,7 +25,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -60,9 +37,11 @@ public class PrincipalService {
     private final ServicePrincipalRepository servicePrincipalRepository;
     private final SystemPrincipalRepository systemPrincipalRepository;
     private final DevicePrincipalRepository devicePrincipalRepository;
-    private final PrincipalTenantMembershipRepository membershipRepository;
     private final KeycloakService keycloakService;
     private final EventPublisher eventPublisher;
+    private final ServicePrincipalMapper servicePrincipalMapper;
+    private final SystemPrincipalMapper systemPrincipalMapper;
+    private final PrincipalEventMapper principalEventMapper;
 
     private static final String IAM_PRINCIPAL_EXCHANGE = "iam.principal.events";
     private static final String PRINCIPAL_ACTIVATED_KEY = "iam.principal.principal.activated";
@@ -77,42 +56,46 @@ public class PrincipalService {
             ServicePrincipalRepository servicePrincipalRepository,
             SystemPrincipalRepository systemPrincipalRepository,
             DevicePrincipalRepository devicePrincipalRepository,
-            PrincipalTenantMembershipRepository membershipRepository,
             KeycloakService keycloakService,
-            EventPublisher eventPublisher) {
+            EventPublisher eventPublisher,
+            ServicePrincipalMapper servicePrincipalMapper,
+            SystemPrincipalMapper systemPrincipalMapper,
+            PrincipalEventMapper principalEventMapper) {
         this.humanPrincipalRepository = humanPrincipalRepository;
         this.servicePrincipalRepository = servicePrincipalRepository;
         this.systemPrincipalRepository = systemPrincipalRepository;
         this.devicePrincipalRepository = devicePrincipalRepository;
-        this.membershipRepository = membershipRepository;
         this.keycloakService = keycloakService;
         this.eventPublisher = eventPublisher;
+        this.servicePrincipalMapper = servicePrincipalMapper;
+        this.systemPrincipalMapper = systemPrincipalMapper;
+        this.principalEventMapper = principalEventMapper;
     }
 
     /**
      * Finds a principal by ID across all principal types.
-     * 
+     *
      * @param principalId the principal ID
      * @return the principal entity if found, empty otherwise
      */
-    public Optional<Principal> findPrincipalById(java.util.UUID principalId) {
+    public Optional<Principal> findPrincipalByBusinessId(PrincipalId principalId) {
         // Try each repository in order
-        Optional<HumanPrincipalEntity> human = humanPrincipalRepository.findById(principalId);
+        Optional<HumanPrincipalEntity> human = humanPrincipalRepository.findByBusinessId(principalId);
         if (human.isPresent()) {
             return Optional.of(human.get());
         }
 
-        Optional<ServicePrincipalEntity> service = servicePrincipalRepository.findById(principalId);
+        Optional<ServicePrincipalEntity> service = servicePrincipalRepository.findByBusinessId(principalId);
         if (service.isPresent()) {
             return Optional.of(service.get());
         }
 
-        Optional<SystemPrincipalEntity> system = systemPrincipalRepository.findById(principalId);
+        Optional<SystemPrincipalEntity> system = systemPrincipalRepository.findByBusinessId(principalId);
         if (system.isPresent()) {
             return Optional.of(system.get());
         }
 
-        Optional<DevicePrincipalEntity> device = devicePrincipalRepository.findById(principalId);
+        Optional<DevicePrincipalEntity> device = devicePrincipalRepository.findByBusinessId(principalId);
         if (device.isPresent()) {
             return Optional.of(device.get());
         }
@@ -122,15 +105,15 @@ public class PrincipalService {
 
     /**
      * Activates a principal.
-     * 
+     *
      * @param command the activation command
      * @return the activation result
      */
     @Transactional
     public PrincipalActivated activatePrincipal(ActivatePrincipalCommand command) {
         // Find principal by ID
-        Principal principal = findPrincipalById(command.principalId())
-                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
+        Principal principal = findPrincipalByBusinessId(PrincipalId.of(command.id()))
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.id()));
 
         // Validate principal is PENDING
         if (principal.getStatus() != PrincipalStatus.PENDING) {
@@ -166,7 +149,7 @@ public class PrincipalService {
                 HumanPrincipalEntity humanPrincipal = (HumanPrincipalEntity) principal;
                 if (humanPrincipal.getKeycloakUserId() != null && !humanPrincipal.getKeycloakUserId().isBlank()) {
                     User keycloakUser = User.builder()
-                            .id(humanPrincipal.getPrincipalId().toString())
+                            .id(humanPrincipal.getBusinessId().toString())
                             .username(humanPrincipal.getUsername())
                             .email(humanPrincipal.getEmail())
                             .firstName(humanPrincipal.getFirstName())
@@ -197,56 +180,48 @@ public class PrincipalService {
             }
         } catch (Exception e) {
             // Log error but don't fail the transaction - activation should succeed even if Keycloak sync fails
-            logger.error("Failed to enable principal in Keycloak for principal: " + principal.getPrincipalId(), e);
+            logger.error("Failed to enable principal in Keycloak for principal: " + principal.getBusinessId(), e);
         }
 
         // Determine activation method
-        String activationMethod = command.adminOverride() != null && command.adminOverride() 
-                ? "admin_override" 
+        String activationMethod = command.adminOverride() != null && command.adminOverride()
+                ? "admin_override"
                 : (command.verificationToken() != null ? "email_verification" : "unknown");
-        
-        String activatedBy = command.adminOverride() != null && command.adminOverride() 
-                ? "admin" 
+
+        String activatedBy = command.adminOverride() != null && command.adminOverride()
+                ? "admin"
                 : "self";
 
         // Publish event
         PrincipalActivatedEvent event = new PrincipalActivatedEvent(
-                principal.getPrincipalId(),
+                principal.getBusinessId().value(),
                 principal.getPrincipalType().name(),
                 principal.getStatus().name(),
                 activatedBy,
                 activationMethod
         );
 
-        RoutingKey routingKey = new RoutingKey(PRINCIPAL_ACTIVATED_KEY, NO_DESC, "", "");
-        // TODO: Pass event payload when event publisher supports it
-        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
+//        RoutingKey routingKey = new RoutingKey(PRINCIPAL_ACTIVATED_KEY, NO_DESC, "", "");
+//        // TODO: Pass event payload when event publisher supports it
+//        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
 
-        return new PrincipalActivated(principal.getPrincipalId());
+        return new PrincipalActivated(principal.getBusinessId().value());
     }
 
-    /**
-     * Suspends a principal.
-     * 
-     * @param command the suspension command
-     * @return the suspension result
-     */
+
     @Transactional
     public PrincipalSuspended suspendPrincipal(SuspendPrincipalCommand command) {
-        // Find principal by ID
-        Principal principal = findPrincipalById(command.principalId())
-                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
 
-        // Validate principal is ACTIVE
+        Principal principal = findPrincipalByBusinessId(PrincipalId.of(command.id()))
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.id()));
+
         if (principal.getStatus() != PrincipalStatus.ACTIVE) {
             throw new IllegalStateException(
                     "Principal must be ACTIVE to suspend. Current status: " + principal.getStatus());
         }
 
-        // Update status to SUSPENDED
         principal.setStatus(PrincipalStatus.SUSPENDED);
 
-        // Save based on principal type
         if (principal instanceof HumanPrincipalEntity) {
             humanPrincipalRepository.save((HumanPrincipalEntity) principal);
         } else if (principal instanceof ServicePrincipalEntity) {
@@ -264,7 +239,7 @@ public class PrincipalService {
                 HumanPrincipalEntity humanPrincipal = (HumanPrincipalEntity) principal;
                 if (humanPrincipal.getKeycloakUserId() != null && !humanPrincipal.getKeycloakUserId().isBlank()) {
                     User keycloakUser = User.builder()
-                            .id(humanPrincipal.getPrincipalId().toString())
+                            .id(humanPrincipal.getBusinessId().toString())
                             .username(humanPrincipal.getUsername())
                             .email(humanPrincipal.getEmail())
                             .firstName(humanPrincipal.getFirstName())
@@ -296,32 +271,17 @@ public class PrincipalService {
             }
         } catch (Exception e) {
             // Log error but don't fail the transaction - suspension should succeed even if Keycloak sync fails
-            logger.error("Failed to disable principal in Keycloak for principal: " + principal.getPrincipalId(), e);
+            logger.error("Failed to disable principal in Keycloak for principal: " + principal.getBusinessId(), e);
         }
 
-        // Update all PrincipalTenantMemberships to SUSPENDED
-        var memberships = membershipRepository.findByPrincipalId(principal.getPrincipalId());
-        for (var membership : memberships) {
-            if (membership.getStatus() == MembershipStatus.ACTIVE) {
-                membership.setStatus(MembershipStatus.SUSPENDED);
-                membershipRepository.save(membership);
-            }
-        }
 
-        // Publish event
-        PrincipalSuspendedEvent event = new PrincipalSuspendedEvent(
-                principal.getPrincipalId(),
-                principal.getPrincipalType().name(),
-                principal.getStatus().name(),
-                command.reason(),
-                command.incidentTicket()
-        );
+        PrincipalSuspendedEvent event = principalEventMapper.toPrincipalSuspendedEvent(principal, command);
 
-        RoutingKey routingKey = new RoutingKey(PRINCIPAL_SUSPENDED_KEY, NO_DESC, "", "");
-        // TODO: Pass event payload when event publisher supports it
-        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
+//        RoutingKey routingKey = new RoutingKey(PRINCIPAL_SUSPENDED_KEY, NO_DESC, "", "");
+//        // TODO: Pass event payload when event publisher supports it
+//        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
 
-        return new PrincipalSuspended(principal.getPrincipalId());
+        return new PrincipalSuspended(principal.getBusinessId().value());
     }
 
     /**
@@ -332,20 +292,17 @@ public class PrincipalService {
      */
     @Transactional
     public PrincipalDeactivated deactivatePrincipal(DeactivatePrincipalCommand command) {
-        // Find principal by ID
-        Principal principal = findPrincipalById(command.principalId())
-                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
 
-        // Validate principal is ACTIVE or SUSPENDED
+        Principal principal = findPrincipalByBusinessId(PrincipalId.of(command.id()))
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.id()));
+
         if (principal.getStatus() != PrincipalStatus.ACTIVE && principal.getStatus() != PrincipalStatus.SUSPENDED) {
             throw new IllegalStateException(
                     "Principal must be ACTIVE or SUSPENDED to deactivate. Current status: " + principal.getStatus());
         }
 
-        // Update status to INACTIVE
         principal.setStatus(PrincipalStatus.INACTIVE);
 
-        // Save based on principal type
         if (principal instanceof HumanPrincipalEntity) {
             humanPrincipalRepository.save((HumanPrincipalEntity) principal);
         } else if (principal instanceof ServicePrincipalEntity) {
@@ -356,13 +313,12 @@ public class PrincipalService {
             devicePrincipalRepository.save((DevicePrincipalEntity) principal);
         }
 
-        // Disable in Keycloak and revoke sessions
         try {
             if (principal instanceof HumanPrincipalEntity) {
                 HumanPrincipalEntity humanPrincipal = (HumanPrincipalEntity) principal;
                 if (humanPrincipal.getKeycloakUserId() != null && !humanPrincipal.getKeycloakUserId().isBlank()) {
                     User keycloakUser = User.builder()
-                            .id(humanPrincipal.getPrincipalId().toString())
+                            .id(humanPrincipal.getBusinessId().toString())
                             .username(humanPrincipal.getUsername())
                             .email(humanPrincipal.getEmail())
                             .firstName(humanPrincipal.getFirstName())
@@ -390,58 +346,41 @@ public class PrincipalService {
                 }
             }
         } catch (Exception e) {
-            logger.error("Failed to disable principal in Keycloak for principal: " + principal.getPrincipalId(), e);
+            logger.error("Failed to disable principal in Keycloak for principal: " + principal.getBusinessId(), e);
         }
 
         // Publish event
-        PrincipalDeactivatedEvent event = new PrincipalDeactivatedEvent(
-                principal.getPrincipalId(),
-                principal.getPrincipalType().name(),
-                principal.getStatus().name(),
-                command.reason(),
-                command.effectiveDate()
-        );
+        PrincipalDeactivatedEvent event = principalEventMapper.toPrincipalDeactivatedEvent(principal, command);
 
-        RoutingKey routingKey = new RoutingKey(PRINCIPAL_DEACTIVATED_KEY, NO_DESC, "", "");
-        // TODO: Pass event payload when event publisher supports it
-        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
+//        RoutingKey routingKey = new RoutingKey(PRINCIPAL_DEACTIVATED_KEY, NO_DESC, "", "");
+//        // TODO: Pass event payload when event publisher supports it
+//        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
 
-        return new PrincipalDeactivated(principal.getPrincipalId());
+        return new PrincipalDeactivated(principal.getBusinessId().value());
     }
 
-    /**
-     * Deletes a principal per GDPR right to erasure.
-     *
-     * @param command the GDPR deletion command
-     * @return the deletion result
-     */
     @Transactional
     public PrincipalDeleted deletePrincipalGdpr(DeletePrincipalGdprCommand command) {
-        // Find principal by ID
-        Principal principal = findPrincipalById(command.principalId())
-                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
 
-        // Validate principal is INACTIVE
+        Principal principal = findPrincipalByBusinessId(PrincipalId.of(command.id()))
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.id()));
+
         if (principal.getStatus() != PrincipalStatus.INACTIVE) {
             throw new IllegalStateException(
                     "Principal must be INACTIVE to delete per GDPR. Current status: " + principal.getStatus());
         }
 
-        // Validate minimum retention period has passed (30 days)
         java.time.Instant inactiveThreshold = java.time.Instant.now().minus(java.time.Duration.ofDays(GDPR_RETENTION_DAYS));
         if (principal.getUpdatedAt() != null && principal.getUpdatedAt().isAfter(inactiveThreshold)) {
             throw new IllegalStateException(
                     "Principal must be INACTIVE for at least " + GDPR_RETENTION_DAYS + " days before GDPR deletion");
         }
 
-        // Generate audit reference
         String auditReference = "aud-" + java.util.UUID.randomUUID().toString().substring(0, 8);
         java.time.Instant deletedAt = java.time.Instant.now();
 
-        // Store principal type before anonymization
         String principalType = principal.getPrincipalType().name();
 
-        // Anonymize principal data
         String anonymizedUsername = "deleted_user_" + java.util.UUID.randomUUID();
         String anonymizedEmail = "deleted_" + deletedAt.toEpochMilli() + "@example.com";
 
@@ -450,7 +389,6 @@ public class PrincipalService {
         principal.setContextTags(null);
         principal.setStatus(PrincipalStatus.DELETED);
 
-        // Additional anonymization for HumanPrincipal
         if (principal instanceof HumanPrincipalEntity humanPrincipal) {
             humanPrincipal.setFirstName("Deleted");
             humanPrincipal.setLastName("User");
@@ -467,7 +405,7 @@ public class PrincipalService {
                     keycloakService.deleteUser(humanPrincipal.getKeycloakUserId());
                 }
             } catch (Exception e) {
-                logger.error("Failed to delete user from Keycloak for principal: " + principal.getPrincipalId(), e);
+                logger.error("Failed to delete user from Keycloak for principal: " + principal.getBusinessId(), e);
             }
         } else if (principal instanceof ServicePrincipalEntity servicePrincipal) {
             servicePrincipal.setServiceName(anonymizedUsername);
@@ -481,7 +419,7 @@ public class PrincipalService {
                     keycloakService.deleteClient(servicePrincipal.getKeycloakClientId());
                 }
             } catch (Exception e) {
-                logger.error("Failed to delete client from Keycloak for principal: " + principal.getPrincipalId(), e);
+                logger.error("Failed to delete client from Keycloak for principal: " + principal.getBusinessId(), e);
             }
         } else if (principal instanceof SystemPrincipalEntity systemPrincipal) {
             systemPrincipal.setSystemIdentifier(anonymizedUsername);
@@ -489,13 +427,12 @@ public class PrincipalService {
             systemPrincipal.setAllowedOperations(null);
             systemPrincipalRepository.save(systemPrincipal);
 
-            // Delete from Keycloak
             try {
                 if (systemPrincipal.getKeycloakClientId() != null && !systemPrincipal.getKeycloakClientId().isBlank()) {
                     keycloakService.deleteClient(systemPrincipal.getKeycloakClientId());
                 }
             } catch (Exception e) {
-                logger.error("Failed to delete client from Keycloak for principal: " + principal.getPrincipalId(), e);
+                logger.error("Failed to delete client from Keycloak for principal: " + principal.getBusinessId(), e);
             }
         } else if (principal instanceof DevicePrincipalEntity devicePrincipal) {
             devicePrincipal.setDeviceIdentifier(anonymizedUsername);
@@ -503,36 +440,22 @@ public class PrincipalService {
             devicePrincipal.setModel(null);
             devicePrincipalRepository.save(devicePrincipal);
 
-            // Delete from Keycloak
             try {
                 if (devicePrincipal.getKeycloakClientId() != null && !devicePrincipal.getKeycloakClientId().isBlank()) {
                     keycloakService.deleteClient(devicePrincipal.getKeycloakClientId());
                 }
             } catch (Exception e) {
-                logger.error("Failed to delete client from Keycloak for principal: " + principal.getPrincipalId(), e);
+                logger.error("Failed to delete client from Keycloak for principal: " + principal.getBusinessId(), e);
             }
         }
 
-        // Delete all tenant memberships
-        var memberships = membershipRepository.findByPrincipalId(principal.getPrincipalId());
-        for (var membership : memberships) {
-            membershipRepository.delete(membership);
-        }
+        PrincipalDeletedEvent event = principalEventMapper.toPrincipalDeletedEvent(
+                principal, command, principalType, auditReference, deletedAt);
 
-        // Publish event
-        PrincipalDeletedEvent event = new PrincipalDeletedEvent(
-                principal.getPrincipalId(),
-                principalType,
-                command.gdprRequestTicket(),
-                command.requestorEmail(),
-                auditReference,
-                deletedAt
-        );
+//        RoutingKey routingKey = new RoutingKey(PRINCIPAL_DELETED_KEY, NO_DESC, "", "");
+//        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
 
-        RoutingKey routingKey = new RoutingKey(PRINCIPAL_DELETED_KEY, NO_DESC, "", "");
-        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
-
-        return new PrincipalDeleted(principal.getPrincipalId(), true, auditReference, deletedAt);
+        return new PrincipalDeleted(principal.getBusinessId().value(), true, auditReference, deletedAt);
     }
 
     /**
@@ -563,12 +486,12 @@ public class PrincipalService {
 
             for (HumanPrincipalEntity entity : humanPage.getContent()) {
                 items.add(new SearchPrincipalsResult.PrincipalItem(
-                        entity.getPrincipalId(),
+                        entity.getBusinessId().value(),
                         entity.getUsername(),
                         entity.getEmail(),
                         entity.getPrincipalType().name(),
                         entity.getStatus().name(),
-                        entity.getPrimaryTenantId(),
+                        entity.getDefaultTenantId(),
                         entity.getLastLoginAt(),
                         entity.getCreatedAt()
                 ));
@@ -586,8 +509,8 @@ public class PrincipalService {
      * @return the principal details
      */
     @Transactional(readOnly = true)
-    public PrincipalDetails getPrincipalDetails(java.util.UUID principalId) {
-        Principal principal = findPrincipalById(principalId)
+    public PrincipalDetails getPrincipalDetails(PrincipalId principalId) {
+        Principal principal = findPrincipalByBusinessId(principalId)
                 .orElseThrow(() -> new RuntimeException("Principal not found: " + principalId));
 
         // Human principal specific fields
@@ -637,12 +560,12 @@ public class PrincipalService {
         }
 
         return new PrincipalDetails(
-                principal.getPrincipalId(),
+                principal.getBusinessId().value(),
                 principal.getPrincipalType().name(),
                 principal.getUsername(),
                 principal.getEmail(),
                 principal.getStatus().name(),
-                principal.getPrimaryTenantId(),
+                principal.getDefaultTenantId(),
                 principal.getCreatedAt(),
                 principal.getUpdatedAt(),
                 principal.getContextTags(),
@@ -674,8 +597,8 @@ public class PrincipalService {
     @Transactional
     public CommonAttributesUpdated updateCommonAttributes(UpdateCommonAttributesCommand command) {
         // Find principal by ID
-        Principal principal = findPrincipalById(command.principalId())
-                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
+        Principal principal = findPrincipalByBusinessId(PrincipalId.of(command.id()))
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.id()));
 
         // Update context_tags
         principal.setContextTags(command.contextTags());
@@ -691,7 +614,7 @@ public class PrincipalService {
             devicePrincipalRepository.save((DevicePrincipalEntity) principal);
         }
 
-        return new CommonAttributesUpdated(principal.getPrincipalId());
+        return new CommonAttributesUpdated(principal.getBusinessId().value());
     }
 
     /**
@@ -701,102 +624,69 @@ public class PrincipalService {
      * @return the credential status
      */
     @Transactional(readOnly = true)
-    public CredentialStatus getCredentialStatus(java.util.UUID principalId) {
-        // Find principal by ID
-        Principal principal = findPrincipalById(principalId)
+    public CredentialStatus getCredentialStatus(PrincipalId principalId) {
+        Principal principal = findPrincipalByBusinessId(principalId)
                 .orElseThrow(() -> new RuntimeException("Principal not found: " + principalId));
 
-        // Validate principal is SERVICE or SYSTEM type
-        if (principal.getPrincipalType() != PrincipalType.SERVICE &&
-            principal.getPrincipalType() != PrincipalType.SYSTEM) {
-            throw new IllegalArgumentException(
-                    "Credential status is only available for SERVICE or SYSTEM principals. Type: " + principal.getPrincipalType());
-        }
-
-        java.time.LocalDate credentialRotationDate = null;
-        Long daysUntilRotation = null;
-        java.time.Instant lastRotatedAt = null;
-        Boolean rotationRequired = null;
-        Boolean hasApiKey = false;
-        Boolean hasCertificate = false;
-
         if (principal instanceof ServicePrincipalEntity servicePrincipal) {
-            credentialRotationDate = servicePrincipal.getCredentialRotationDate();
-            lastRotatedAt = servicePrincipal.getRotatedAt();
-            hasApiKey = servicePrincipal.getApiKeyHash() != null && !servicePrincipal.getApiKeyHash().isBlank();
-
-            if (credentialRotationDate != null) {
-                daysUntilRotation = java.time.temporal.ChronoUnit.DAYS.between(
-                        java.time.LocalDate.now(), credentialRotationDate);
-                rotationRequired = daysUntilRotation < 0;
-            }
+            return servicePrincipalMapper.toCredentialStatus(servicePrincipal);
         } else if (principal instanceof SystemPrincipalEntity systemPrincipal) {
-            hasCertificate = systemPrincipal.getCertificateThumbprint() != null &&
-                            !systemPrincipal.getCertificateThumbprint().isBlank();
-            // System principals don't have rotation dates in current model
-            rotationRequired = false;
+            return systemPrincipalMapper.toCredentialStatus(systemPrincipal);
         }
 
-        return new CredentialStatus(
-                principal.getPrincipalId(),
-                principal.getPrincipalType().name(),
-                credentialRotationDate,
-                daysUntilRotation,
-                lastRotatedAt,
-                rotationRequired,
-                hasApiKey,
-                hasCertificate
-        );
+        throw new IllegalArgumentException(
+                "Credential status is only available for SERVICE or SYSTEM principals. Type: " + principal.getPrincipalType());
     }
 
     /**
      * Lists tenant memberships for a principal.
      *
-     * @param principalId the principal ID
+     * @param id the principal ID
      * @param page page number (1-indexed)
      * @param size page size
      * @return the paginated list of tenant memberships
      */
-    @Transactional(readOnly = true)
-    public ListTenantMembershipsResult listTenantMemberships(java.util.UUID principalId, int page, int size) {
-        // Validate principal exists
-        Principal principal = findPrincipalById(principalId)
-                .orElseThrow(() -> new RuntimeException("Principal not found: " + principalId));
-
-        // Get all memberships for the principal
-        List<PrincipalTenantMembershipEntity> memberships = membershipRepository.findByPrincipalId(principalId);
-
-        // Get primary tenant ID for comparison
-        java.util.UUID primaryTenantId = principal.getPrimaryTenantId();
-
-        // Convert to items
-        List<TenantMembershipItem> allItems = memberships.stream()
-                .map(m -> new TenantMembershipItem(
-                        m.getId(),
-                        m.getPrincipalId(),
-                        m.getTenantId(),
-                        m.getValidFrom(),
-                        m.getValidTo(),
-                        m.getStatus().name(),
-                        m.getTenantId().equals(primaryTenantId)
-                ))
-                .toList();
-
-        // Apply pagination
-        int pageIndex = Math.max(0, page - 1);
-        int pageSize = Math.min(Math.max(1, size), 100);
-        int fromIndex = pageIndex * pageSize;
-        int toIndex = Math.min(fromIndex + pageSize, allItems.size());
-
-        List<TenantMembershipItem> pagedItems;
-        if (fromIndex >= allItems.size()) {
-            pagedItems = List.of();
-        } else {
-            pagedItems = allItems.subList(fromIndex, toIndex);
-        }
-
-        return new ListTenantMembershipsResult(pagedItems, allItems.size(), page, pageSize);
-    }
+//TODO: to be moved to iam.principal.tenants module
+    //    @Transactional(readOnly = true)
+//    public ListTenantMembershipsResult listTenantMemberships(java.util.UUID id, int page, int size) {
+//        // Validate principal exists
+//        Principal principal = findPrincipalById(id)
+//                .orElseThrow(() -> new RuntimeException("Principal not found: " + id));
+//
+//        // Get all memberships for the principal
+//        List<PrincipalTenantMembershipEntity> memberships = membershipRepository.findByPrincipalId(id);
+//
+//        // Get primary tenant ID for comparison
+//        java.util.UUID defaultTenantId = principal.getPrimaryTenantId();
+//
+//        // Convert to items
+//        List<TenantMembershipItem> allItems = memberships.stream()
+//                .map(m -> new TenantMembershipItem(
+//                        m.getId(),
+//                        m.getBusinessId(),
+//                        m.getTenantId(),
+//                        m.getValidFrom(),
+//                        m.getValidTo(),
+//                        m.getStatus().name(),
+//                        m.getTenantId().equals(defaultTenantId)
+//                ))
+//                .toList();
+//
+//        // Apply pagination
+//        int pageIndex = Math.max(0, page - 1);
+//        int pageSize = Math.min(Math.max(1, size), 100);
+//        int fromIndex = pageIndex * pageSize;
+//        int toIndex = Math.min(fromIndex + pageSize, allItems.size());
+//
+//        List<TenantMembershipItem> pagedItems;
+//        if (fromIndex >= allItems.size()) {
+//            pagedItems = List.of();
+//        } else {
+//            pagedItems = allItems.subList(fromIndex, toIndex);
+//        }
+//
+//        return new ListTenantMembershipsResult(pagedItems, allItems.size(), page, pageSize);
+//    }
 
     /**
      * Adds a tenant membership to a principal.
@@ -804,101 +694,93 @@ public class PrincipalService {
      * @param command the add command
      * @return the created membership
      */
-    @Transactional
-    public TenantMembershipAdded addTenantMembership(AddTenantMembershipCommand command) {
-        // Validate principal exists and is ACTIVE
-        Principal principal = findPrincipalById(command.principalId())
-                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
-
-        if (principal.getStatus() != PrincipalStatus.ACTIVE) {
-            throw new IllegalStateException("Principal is not ACTIVE: " + principal.getStatus());
-        }
-
-        // Check for existing ACTIVE membership
-        var existingMembership = membershipRepository.findByPrincipalIdAndTenantIdAndStatus(
-                command.principalId(), command.tenantId(), MembershipStatus.ACTIVE);
-        if (existingMembership.isPresent()) {
-            throw new IllegalStateException("Active membership already exists for this principal and tenant");
-        }
-
-        // Create new membership
-        PrincipalTenantMembershipEntity membership = new PrincipalTenantMembershipEntity();
-        membership.setPrincipalId(command.principalId());
-        membership.setPrincipalType(principal.getPrincipalType());
-        membership.setTenantId(command.tenantId());
-        membership.setValidFrom(command.validFrom() != null ? command.validFrom() : java.time.LocalDate.now());
-        membership.setValidTo(command.validTo());
-        membership.setStatus(MembershipStatus.ACTIVE);
-        membership.setInvitedBy(command.invitedBy());
-        if (command.invitedBy() != null) {
-            // Try to determine the inviter's principal type
-            var inviter = findPrincipalById(command.invitedBy());
-            if (inviter.isPresent()) {
-                membership.setInvitedByType(inviter.get().getPrincipalType());
-            }
-        }
-
-        PrincipalTenantMembershipEntity savedMembership = membershipRepository.save(membership);
-
-        return new TenantMembershipAdded(
-                savedMembership.getId(),
-                savedMembership.getPrincipalId(),
-                savedMembership.getTenantId(),
-                savedMembership.getValidFrom(),
-                savedMembership.getValidTo(),
-                savedMembership.getStatus().name(),
-                savedMembership.getInvitedBy(),
-                savedMembership.getCreatedAt()
-        );
-    }
+//    TODO: to be moved to iam.principal.tenants module
+//    @Transactional
+//    public TenantMembershipAdded addTenantMembership(AddTenantMembershipCommand command) {
+//        // Validate principal exists and is ACTIVE
+//        Principal principal = findPrincipalById(command.id())
+//                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.id()));
+//
+//        if (principal.getStatus() != PrincipalStatus.ACTIVE) {
+//            throw new IllegalStateException("Principal is not ACTIVE: " + principal.getStatus());
+//        }
+//
+//        // Check for existing ACTIVE membership
+//        var existingMembership = membershipRepository.findByPrincipalIdAndTenantIdAndStatus(
+//                command.id(), command.tenantId(), MembershipStatus.ACTIVE);
+//        if (existingMembership.isPresent()) {
+//            throw new IllegalStateException("Active membership already exists for this principal and tenant");
+//        }
+//
+//        // Create new membership
+//        PrincipalTenantMembershipEntity membership = new PrincipalTenantMembershipEntity();
+//        membership.setPrincipalId(command.id());
+//        membership.setPrincipalType(principal.getPrincipalType());
+//        membership.setValidFrom(command.validFrom() != null ? command.validFrom() : java.time.LocalDate.now());
+//        membership.setValidTo(command.validTo());
+//        membership.setStatus(MembershipStatus.ACTIVE);
+//        membership.setInvitedBy(command.invitedBy());
+//        if (command.invitedBy() != null) {
+//            // Try to determine the inviter's principal type
+//            var inviter = findPrincipalById(command.invitedBy());
+//            if (inviter.isPresent()) {
+//                membership.setInvitedByType(inviter.get().getPrincipalType());
+//            }
+//        }
+//
+//        PrincipalTenantMembershipEntity savedMembership = membershipRepository.save(membership);
+//
+//        return new TenantMembershipAdded(
+//                savedMembership.getId(),
+//                savedMembership.getBusinessId(),
+//                savedMembership.getTenantId(),
+//                savedMembership.getValidFrom(),
+//                savedMembership.getValidTo(),
+//                savedMembership.getStatus().name(),
+//                savedMembership.getInvitedBy(),
+//                savedMembership.getCreatedAt()
+//        );
+//    }
 
     /**
      * Removes a tenant membership from a principal.
      *
      * @param command the remove command
      */
-    @Transactional
-    public void removeTenantMembership(RemoveTenantMembershipCommand command) {
-        // Validate principal exists
-        Principal principal = findPrincipalById(command.principalId())
-                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
-
-        // Cannot remove primary tenant membership
-        if (command.tenantId().equals(principal.getPrimaryTenantId())) {
-            throw new IllegalStateException("Cannot remove primary tenant membership. Change primary tenant first.");
-        }
-
-        // Find the membership
-        PrincipalTenantMembershipEntity membership = membershipRepository
-                .findByPrincipalIdAndTenantIdAndStatus(command.principalId(), command.tenantId(), MembershipStatus.ACTIVE)
-                .orElseThrow(() -> new RuntimeException("Active membership not found for principal and tenant"));
-
-        // Update membership to EXPIRED
-        membership.setStatus(MembershipStatus.EXPIRED);
-        if (membership.getValidTo() == null) {
-            membership.setValidTo(java.time.LocalDate.now());
-        }
-
-        membershipRepository.save(membership);
-    }
-
-    /**
-     * Updates a device principal's heartbeat.
-     *
-     * @param command the update command
-     * @return the heartbeat result
-     */
+    // TODO: to be moved to iam.principal.tenants module
+//    @Transactional
+//    public void removeTenantMembership(RemoveTenantMembershipCommand command) {
+//        // Validate principal exists
+//        Principal principal = findPrincipalById(command.id())
+//                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.id()));
+//
+//        // Cannot remove primary tenant membership
+//        if (command.tenantId().equals(principal.getPrimaryTenantId())) {
+//            throw new IllegalStateException("Cannot remove primary tenant membership. Change primary tenant first.");
+//        }
+//
+//        // Find the membership
+//        PrincipalTenantMembershipEntity membership = membershipRepository
+//                .findByPrincipalIdAndTenantIdAndStatus(command.id(), command.tenantId(), MembershipStatus.ACTIVE)
+//                .orElseThrow(() -> new RuntimeException("Active membership not found for principal and tenant"));
+//
+//        // Update membership to EXPIRED
+//        membership.setStatus(MembershipStatus.EXPIRED);
+//        if (membership.getValidTo() == null) {
+//            membership.setValidTo(java.time.LocalDate.now());
+//        }
+//
+//        membershipRepository.save(membership);
+//    }
     @Transactional
     public HeartbeatUpdated updateHeartbeat(UpdateHeartbeatCommand command) {
-        // Find device principal
-        DevicePrincipalEntity device = devicePrincipalRepository.findById(command.principalId())
-                .orElseThrow(() -> new RuntimeException("Device principal not found: " + command.principalId()));
 
-        // Update heartbeat timestamp
+        DevicePrincipalEntity device = devicePrincipalRepository.findByBusinessId(PrincipalId.of(command.id()))
+                .orElseThrow(() -> new RuntimeException("Device principal not found: " + command.id()));
+
         java.time.Instant now = java.time.Instant.now();
         device.setLastHeartbeatAt(now);
 
-        // Update optional fields if provided
         if (command.firmwareVersion() != null) {
             device.setFirmwareVersion(command.firmwareVersion());
         }
@@ -908,97 +790,92 @@ public class PrincipalService {
 
         devicePrincipalRepository.save(device);
 
-        return new HeartbeatUpdated(device.getPrincipalId(), now);
+        return new HeartbeatUpdated(device.getBusinessId().value(), now);
     }
 
-    /**
-     * Searches principals across all tenants (admin only).
-     *
-     * @param query the search query
-     * @return the search results
-     */
-    @Transactional(readOnly = true)
-    public CrossTenantSearchResult searchPrincipalsCrossTenant(CrossTenantSearchQuery query) {
-        List<CrossTenantPrincipalItem> allItems = new ArrayList<>();
-
-        // Search across all principal types
-        PrincipalStatus statusFilter = null;
-        if (query.status() != null && !query.status().isBlank()) {
-            try {
-                statusFilter = PrincipalStatus.valueOf(query.status());
-            } catch (IllegalArgumentException e) {
-                // Ignore invalid status
-            }
-        }
-
-        PrincipalType typeFilter = null;
-        if (query.principalType() != null && !query.principalType().isBlank()) {
-            try {
-                typeFilter = PrincipalType.valueOf(query.principalType());
-            } catch (IllegalArgumentException e) {
-                // Ignore invalid type
-            }
-        }
-
-        // Search human principals
-        if (typeFilter == null || typeFilter == PrincipalType.HUMAN) {
-            for (HumanPrincipalEntity p : humanPrincipalRepository.findAll()) {
-                if (matchesFilter(p, query.search(), statusFilter)) {
-                    allItems.add(new CrossTenantPrincipalItem(
-                            p.getPrincipalId(), p.getPrincipalType().name(),
-                            p.getUsername(), p.getEmail(), p.getStatus().name(), p.getPrimaryTenantId()));
-                }
-            }
-        }
-
-        // Search service principals
-        if (typeFilter == null || typeFilter == PrincipalType.SERVICE) {
-            for (ServicePrincipalEntity p : servicePrincipalRepository.findAll()) {
-                if (matchesFilter(p, query.search(), statusFilter)) {
-                    allItems.add(new CrossTenantPrincipalItem(
-                            p.getPrincipalId(), p.getPrincipalType().name(),
-                            p.getUsername(), p.getEmail(), p.getStatus().name(), p.getPrimaryTenantId()));
-                }
-            }
-        }
-
-        // Search system principals
-        if (typeFilter == null || typeFilter == PrincipalType.SYSTEM) {
-            for (SystemPrincipalEntity p : systemPrincipalRepository.findAll()) {
-                if (matchesFilter(p, query.search(), statusFilter)) {
-                    allItems.add(new CrossTenantPrincipalItem(
-                            p.getPrincipalId(), p.getPrincipalType().name(),
-                            p.getUsername(), p.getEmail(), p.getStatus().name(), p.getPrimaryTenantId()));
-                }
-            }
-        }
-
-        // Search device principals
-        if (typeFilter == null || typeFilter == PrincipalType.DEVICE) {
-            for (DevicePrincipalEntity p : devicePrincipalRepository.findAll()) {
-                if (matchesFilter(p, query.search(), statusFilter)) {
-                    allItems.add(new CrossTenantPrincipalItem(
-                            p.getPrincipalId(), p.getPrincipalType().name(),
-                            p.getUsername(), p.getEmail(), p.getStatus().name(), p.getPrimaryTenantId()));
-                }
-            }
-        }
-
-        // Apply pagination
-        int pageIndex = Math.max(0, query.page() - 1);
-        int pageSize = Math.min(Math.max(1, query.size()), 100);
-        int fromIndex = pageIndex * pageSize;
-        int toIndex = Math.min(fromIndex + pageSize, allItems.size());
-
-        List<CrossTenantPrincipalItem> pagedItems;
-        if (fromIndex >= allItems.size()) {
-            pagedItems = List.of();
-        } else {
-            pagedItems = allItems.subList(fromIndex, toIndex);
-        }
-
-        return new CrossTenantSearchResult(pagedItems, allItems.size(), query.page(), pageSize);
-    }
+    // TODO: to be moved to iam.tenant module
+//    @Transactional(readOnly = true)
+//    public CrossTenantSearchResult searchPrincipalsCrossTenant(CrossTenantSearchQuery query) {
+//        List<CrossTenantPrincipalItem> allItems = new ArrayList<>();
+//
+//        // Search across all principal types
+//        PrincipalStatus statusFilter = null;
+//        if (query.status() != null && !query.status().isBlank()) {
+//            try {
+//                statusFilter = PrincipalStatus.valueOf(query.status());
+//            } catch (IllegalArgumentException e) {
+//                // Ignore invalid status
+//            }
+//        }
+//
+//        PrincipalType typeFilter = null;
+//        if (query.principalType() != null && !query.principalType().isBlank()) {
+//            try {
+//                typeFilter = PrincipalType.valueOf(query.principalType());
+//            } catch (IllegalArgumentException e) {
+//                // Ignore invalid type
+//            }
+//        }
+//
+//        // Search human principals
+//        if (typeFilter == null || typeFilter == PrincipalType.HUMAN) {
+//            for (HumanPrincipalEntity p : humanPrincipalRepository.findAll()) {
+//                if (matchesFilter(p, query.search(), statusFilter)) {
+//                    allItems.add(new CrossTenantPrincipalItem(
+//                            p.getBusinessId(), p.getPrincipalType().name(),
+//                            p.getUsername(), p.getEmail(), p.getStatus().name(), p.getPrimaryTenantId()));
+//                }
+//            }
+//        }
+//
+//        // Search service principals
+//        if (typeFilter == null || typeFilter == PrincipalType.SERVICE) {
+//            for (ServicePrincipalEntity p : servicePrincipalRepository.findAll()) {
+//                if (matchesFilter(p, query.search(), statusFilter)) {
+//                    allItems.add(new CrossTenantPrincipalItem(
+//                            p.getBusinessId(), p.getPrincipalType().name(),
+//                            p.getUsername(), p.getEmail(), p.getStatus().name(), p.getPrimaryTenantId()));
+//                }
+//            }
+//        }
+//
+//        // Search system principals
+//        if (typeFilter == null || typeFilter == PrincipalType.SYSTEM) {
+//            for (SystemPrincipalEntity p : systemPrincipalRepository.findAll()) {
+//                if (matchesFilter(p, query.search(), statusFilter)) {
+//                    allItems.add(new CrossTenantPrincipalItem(
+//                            p.getBusinessId(), p.getPrincipalType().name(),
+//                            p.getUsername(), p.getEmail(), p.getStatus().name(), p.getPrimaryTenantId()));
+//                }
+//            }
+//        }
+//
+//        // Search device principals
+//        if (typeFilter == null || typeFilter == PrincipalType.DEVICE) {
+//            for (DevicePrincipalEntity p : devicePrincipalRepository.findAll()) {
+//                if (matchesFilter(p, query.search(), statusFilter)) {
+//                    allItems.add(new CrossTenantPrincipalItem(
+//                            p.getPrincipalId(), p.getPrincipalType().name(),
+//                            p.getUsername(), p.getEmail(), p.getStatus().name(), p.getPrimaryTenantId()));
+//                }
+//            }
+//        }
+//
+//        // Apply pagination
+//        int pageIndex = Math.max(0, query.page() - 1);
+//        int pageSize = Math.min(Math.max(1, query.size()), 100);
+//        int fromIndex = pageIndex * pageSize;
+//        int toIndex = Math.min(fromIndex + pageSize, allItems.size());
+//
+//        List<CrossTenantPrincipalItem> pagedItems;
+//        if (fromIndex >= allItems.size()) {
+//            pagedItems = List.of();
+//        } else {
+//            pagedItems = allItems.subList(fromIndex, toIndex);
+//        }
+//
+//        return new CrossTenantSearchResult(pagedItems, allItems.size(), query.page(), pageSize);
+//    }
 
     private boolean matchesFilter(Principal principal, String search, PrincipalStatus statusFilter) {
         if (statusFilter != null && principal.getStatus() != statusFilter) {

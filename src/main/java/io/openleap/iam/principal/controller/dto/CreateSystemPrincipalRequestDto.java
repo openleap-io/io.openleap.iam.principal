@@ -2,7 +2,6 @@ package io.openleap.iam.principal.controller.dto;
 
 import io.openleap.iam.principal.domain.entity.IntegrationType;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -16,9 +15,8 @@ public class CreateSystemPrincipalRequestDto {
     private String systemIdentifier;
     
     private IntegrationType integrationType;
-    
-    @NotNull(message = "Primary tenant ID is required")
-    private UUID primaryTenantId;
+
+    private UUID defaultTenantId;
     
     @NotBlank(message = "Certificate thumbprint is required")
     @Size(max = 64, message = "Certificate thumbprint must not exceed 64 characters")
@@ -46,12 +44,12 @@ public class CreateSystemPrincipalRequestDto {
         this.integrationType = integrationType;
     }
     
-    public UUID getPrimaryTenantId() {
-        return primaryTenantId;
+    public UUID getDefaultTenantId() {
+        return defaultTenantId;
     }
     
-    public void setPrimaryTenantId(UUID primaryTenantId) {
-        this.primaryTenantId = primaryTenantId;
+    public void setDefaultTenantId(UUID defaultTenantId) {
+        this.defaultTenantId = defaultTenantId;
     }
     
     public String getCertificateThumbprint() {

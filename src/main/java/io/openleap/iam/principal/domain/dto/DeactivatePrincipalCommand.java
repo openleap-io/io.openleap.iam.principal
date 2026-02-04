@@ -10,7 +10,7 @@ public record DeactivatePrincipalCommand(
     /**
      * Principal ID to deactivate
      */
-    UUID principalId,
+    UUID id,
 
     /**
      * Reason for deactivation (required)

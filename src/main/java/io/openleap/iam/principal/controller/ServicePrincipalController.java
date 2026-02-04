@@ -30,15 +30,7 @@ public class ServicePrincipalController {
         this.servicePrincipalService = servicePrincipalService;
         this.principalMapper = principalMapper;
     }
-    
-    /**
-     * Create a new service principal.
-     *
-     * Requires permission: iam.service_principal:create
-     *
-     * @param request the create request DTO
-     * @return response DTO containing the principal_id, API key, and Keycloak client secret
-     */
+
     @PostMapping("/service")
     public ResponseEntity<CreateServicePrincipalResponseDto> createServicePrincipal(
             @Valid @RequestBody CreateServicePrincipalRequestDto request) {
@@ -48,15 +40,6 @@ public class ServicePrincipalController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    /**
-     * Rotate service principal credentials.
-     *
-     * Requires permission: iam.service_principal.credentials:rotate
-     *
-     * @param principalId the principal ID
-     * @param request the rotation request DTO
-     * @return response DTO containing the new credentials
-     */
     @PostMapping("/{principalId}/rotate-credentials")
     public ResponseEntity<RotateCredentialsResponseDto> rotateCredentials(
             @PathVariable UUID principalId,

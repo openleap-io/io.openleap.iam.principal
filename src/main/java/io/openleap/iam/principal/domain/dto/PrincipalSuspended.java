@@ -9,6 +9,6 @@ public record PrincipalSuspended(
     /**
      * Principal ID that was suspended
      */
-    UUID principalId
+    UUID id
 ) {
 }

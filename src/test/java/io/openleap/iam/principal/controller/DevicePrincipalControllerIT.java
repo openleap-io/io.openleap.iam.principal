@@ -63,7 +63,7 @@ class DevicePrincipalControllerIT {
             CreateDevicePrincipalRequestDto request = new CreateDevicePrincipalRequestDto();
             request.setDeviceIdentifier("DEVICE_SENSOR_001");
             request.setDeviceType(DeviceType.IOT_SENSOR);
-            request.setPrimaryTenantId(tenantId);
+            request.setDefaultTenantId(tenantId);
             request.setCertificateThumbprint("SHA256:device123");
             request.setManufacturer("Acme Corp");
             request.setModel("SensorX200");
@@ -82,7 +82,7 @@ class DevicePrincipalControllerIT {
             );
 
             CreateDevicePrincipalResponseDto responseDto = new CreateDevicePrincipalResponseDto();
-            responseDto.setPrincipalId(principalId);
+            responseDto.setId(principalId);
             responseDto.setUsername("device_sensor_001");
             responseDto.setStatus("ACTIVE");
 
@@ -109,7 +109,7 @@ class DevicePrincipalControllerIT {
             CreateDevicePrincipalRequestDto request = new CreateDevicePrincipalRequestDto();
             request.setDeviceIdentifier("EXISTING_DEVICE");
             request.setDeviceType(DeviceType.IOT_SENSOR);
-            request.setPrimaryTenantId(UUID.randomUUID());
+            request.setDefaultTenantId(UUID.randomUUID());
             request.setCertificateThumbprint("SHA256:abc123");
             request.setManufacturer("Manufacturer");
             request.setModel("Model");
@@ -136,7 +136,7 @@ class DevicePrincipalControllerIT {
             CreateDevicePrincipalRequestDto request = new CreateDevicePrincipalRequestDto();
             request.setDeviceIdentifier("NEW_DEVICE");
             request.setDeviceType(DeviceType.IOT_SENSOR);
-            request.setPrimaryTenantId(tenantId);
+            request.setDefaultTenantId(tenantId);
             request.setCertificateThumbprint("SHA256:abc123");
             request.setManufacturer("Manufacturer");
             request.setModel("Model");
@@ -162,7 +162,7 @@ class DevicePrincipalControllerIT {
             CreateDevicePrincipalRequestDto request = new CreateDevicePrincipalRequestDto();
             request.setDeviceIdentifier("NEW_DEVICE");
             request.setDeviceType(DeviceType.IOT_SENSOR);
-            request.setPrimaryTenantId(UUID.randomUUID());
+            request.setDefaultTenantId(UUID.randomUUID());
             request.setCertificateThumbprint(null); // missing
             request.setManufacturer("Manufacturer");
             request.setModel("Model");
@@ -190,7 +190,7 @@ class DevicePrincipalControllerIT {
             CreateDevicePrincipalRequestDto request = new CreateDevicePrincipalRequestDto();
             request.setDeviceIdentifier("DEVICE_001");
             request.setDeviceType(null); // optional
-            request.setPrimaryTenantId(tenantId);
+            request.setDefaultTenantId(tenantId);
             request.setCertificateThumbprint("SHA256:abc123");
             request.setManufacturer("Manufacturer");
             request.setModel("Model");
@@ -208,7 +208,7 @@ class DevicePrincipalControllerIT {
             );
 
             CreateDevicePrincipalResponseDto responseDto = new CreateDevicePrincipalResponseDto();
-            responseDto.setPrincipalId(principalId);
+            responseDto.setId(principalId);
             responseDto.setUsername("device_001");
             responseDto.setStatus("ACTIVE");
 

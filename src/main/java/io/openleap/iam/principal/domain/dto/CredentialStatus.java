@@ -11,7 +11,7 @@ public record CredentialStatus(
     /**
      * Principal ID
      */
-    UUID principalId,
+    UUID id,
 
     /**
      * Principal type (SERVICE or SYSTEM)

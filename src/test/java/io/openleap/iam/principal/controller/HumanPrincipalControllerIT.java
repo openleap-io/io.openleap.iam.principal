@@ -6,7 +6,7 @@ import io.openleap.iam.principal.controller.exception.PrincipalExceptionHandler;
 import io.openleap.iam.principal.controller.mapper.PrincipalMapper;
 import io.openleap.iam.principal.domain.dto.*;
 import io.openleap.iam.principal.domain.entity.HumanPrincipalEntity;
-import io.openleap.iam.principal.domain.entity.PrincipalStatus;
+import io.openleap.iam.principal.domain.entity.PrincipalId;
 import io.openleap.iam.principal.exception.EmailAlreadyExistsException;
 import io.openleap.iam.principal.exception.TenantNotFoundException;
 import io.openleap.iam.principal.exception.UsernameAlreadyExistsException;
@@ -79,7 +79,7 @@ class HumanPrincipalControllerIT {
             request.setEmail("john@example.com");
             request.setFirstName("John");
             request.setLastName("Doe");
-            request.setPrimaryTenantId(tenantId);
+            request.setDefaultTenantId(tenantId);
 
             CreateHumanPrincipalCommand command = new CreateHumanPrincipalCommand(
                     "johndoe", "john@example.com", tenantId,
@@ -87,10 +87,15 @@ class HumanPrincipalControllerIT {
                     null, null, null, null, null, null, null
             );
 
-            HumanPrincipalCreated created = new HumanPrincipalCreated(principalId);
+            HumanPrincipalCreated created = new HumanPrincipalCreated(
+                    principalId, "HUMAN", "johndoe", "john@example.com", tenantId,
+                    "PENDING", null, "SYNCED", null, null,
+                    null, false, false, null, "johndoe",
+                    "John", "Doe", null, null, null, null, null, null, null
+            );
 
             CreateHumanPrincipalResponseDto responseDto = new CreateHumanPrincipalResponseDto();
-            responseDto.setPrincipalId(principalId);
+            responseDto.setId(principalId);
 
             when(principalMapper.toCommand(any(CreateHumanPrincipalRequestDto.class))).thenReturn(command);
             when(humanPrincipalService.createHumanPrincipal(command)).thenReturn(created);
@@ -115,7 +120,7 @@ class HumanPrincipalControllerIT {
             request.setEmail("new@example.com");
             request.setFirstName("Test");
             request.setLastName("User");
-            request.setPrimaryTenantId(UUID.randomUUID());
+            request.setDefaultTenantId(UUID.randomUUID());
 
             when(principalMapper.toCommand(any(CreateHumanPrincipalRequestDto.class))).thenReturn(mock(CreateHumanPrincipalCommand.class));
             when(humanPrincipalService.createHumanPrincipal(any(CreateHumanPrincipalCommand.class)))
@@ -140,7 +145,7 @@ class HumanPrincipalControllerIT {
             request.setEmail("existing@example.com");
             request.setFirstName("Test");
             request.setLastName("User");
-            request.setPrimaryTenantId(UUID.randomUUID());
+            request.setDefaultTenantId(UUID.randomUUID());
 
             when(principalMapper.toCommand(any(CreateHumanPrincipalRequestDto.class))).thenReturn(mock(CreateHumanPrincipalCommand.class));
             when(humanPrincipalService.createHumanPrincipal(any(CreateHumanPrincipalCommand.class)))
@@ -166,7 +171,7 @@ class HumanPrincipalControllerIT {
             request.setEmail("new@example.com");
             request.setFirstName("Test");
             request.setLastName("User");
-            request.setPrimaryTenantId(tenantId);
+            request.setDefaultTenantId(tenantId);
 
             when(principalMapper.toCommand(any(CreateHumanPrincipalRequestDto.class))).thenReturn(mock(CreateHumanPrincipalCommand.class));
             when(humanPrincipalService.createHumanPrincipal(any(CreateHumanPrincipalCommand.class)))
@@ -183,7 +188,7 @@ class HumanPrincipalControllerIT {
     }
 
     @Nested
-    @DisplayName("GET /api/v1/iam/principals/{principalId} - Get Principal")
+    @DisplayName("GET /api/v1/iam/principals/{id} - Get Principal")
     class GetPrincipal {
 
         @Test
@@ -203,11 +208,11 @@ class HumanPrincipalControllerIT {
             );
 
             GetPrincipalResponseDto responseDto = new GetPrincipalResponseDto();
-            responseDto.setPrincipalId(principalId.toString());
+            responseDto.setId(principalId.toString());
             responseDto.setUsername("johndoe");
             responseDto.setStatus("ACTIVE");
 
-            when(principalService.getPrincipalDetails(principalId)).thenReturn(details);
+            when(principalService.getPrincipalDetails(PrincipalId.of(principalId))).thenReturn(details);
             when(principalMapper.toResponseDto(details)).thenReturn(responseDto);
 
             // when / then
@@ -224,7 +229,7 @@ class HumanPrincipalControllerIT {
         void shouldReturnErrorWhenPrincipalNotFound() throws Exception {
             // given
             UUID principalId = UUID.randomUUID();
-            when(principalService.getPrincipalDetails(principalId))
+            when(principalService.getPrincipalDetails(PrincipalId.of(principalId)))
                     .thenThrow(new RuntimeException("Principal not found"));
 
             // when / then
@@ -234,7 +239,7 @@ class HumanPrincipalControllerIT {
     }
 
     @Nested
-    @DisplayName("PATCH /api/v1/iam/principals/{principalId}/profile - Update Profile")
+    @DisplayName("PATCH /api/v1/iam/principals/{id}/profile - Update Profile")
     class UpdateProfile {
 
         @Test
@@ -256,19 +261,19 @@ class HumanPrincipalControllerIT {
             ProfileUpdated updated = new ProfileUpdated(principalId, List.of("first_name", "last_name"));
 
             HumanPrincipalEntity principal = new HumanPrincipalEntity();
-            principal.setPrincipalId(principalId);
+            principal.setBusinessId(PrincipalId.of(principalId));
             principal.setFirstName("UpdatedFirst");
             principal.setLastName("UpdatedLast");
 
             UpdateProfileResponseDto responseDto = new UpdateProfileResponseDto();
-            responseDto.setPrincipalId(principalId.toString());
+            responseDto.setId(principalId.toString());
             responseDto.setFirstName("UpdatedFirst");
             responseDto.setLastName("UpdatedLast");
 
             when(principalMapper.toCommand(any(UpdateProfileRequestDto.class), eq(principalId))).thenReturn(command);
             when(humanPrincipalService.updateProfile(command)).thenReturn(updated);
             when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
-            when(principalMapper.toResponseDto(updated, principal)).thenReturn(responseDto);
+            when(principalMapper.toResponseDto(principal)).thenReturn(responseDto);
 
             // when / then
             mockMvc.perform(patch(BASE_URL + "/{principalId}/profile", principalId)
@@ -283,7 +288,7 @@ class HumanPrincipalControllerIT {
     }
 
     @Nested
-    @DisplayName("GET /api/v1/iam/principals/{principalId}/profile - Get Profile")
+    @DisplayName("GET /api/v1/iam/principals/{id}/profile - Get Profile")
     class GetProfile {
 
         @Test
@@ -301,7 +306,7 @@ class HumanPrincipalControllerIT {
             );
 
             GetProfileResponseDto responseDto = new GetProfileResponseDto();
-            responseDto.setPrincipalId(principalId.toString());
+            responseDto.setId(principalId.toString());
             responseDto.setFirstName("John");
             responseDto.setLastName("Doe");
             responseDto.setDisplayName("Johnny");
@@ -320,7 +325,7 @@ class HumanPrincipalControllerIT {
     }
 
     @Nested
-    @DisplayName("POST /api/v1/iam/principals/{principalId}/activate - Activate Principal")
+    @DisplayName("POST /api/v1/iam/principals/{id}/activate - Activate Principal")
     class ActivatePrincipal {
 
         @Test
@@ -341,7 +346,7 @@ class HumanPrincipalControllerIT {
             PrincipalActivated activated = new PrincipalActivated(principalId);
 
             ActivatePrincipalResponseDto responseDto = new ActivatePrincipalResponseDto();
-            responseDto.setPrincipalId(principalId.toString());
+            responseDto.setId(principalId.toString());
             responseDto.setStatus("ACTIVE");
 
             when(principalMapper.toCommand(any(ActivatePrincipalRequestDto.class), eq(principalId))).thenReturn(command);
@@ -360,7 +365,7 @@ class HumanPrincipalControllerIT {
     }
 
     @Nested
-    @DisplayName("POST /api/v1/iam/principals/{principalId}/suspend - Suspend Principal")
+    @DisplayName("POST /api/v1/iam/principals/{id}/suspend - Suspend Principal")
     class SuspendPrincipal {
 
         @Test
@@ -381,7 +386,7 @@ class HumanPrincipalControllerIT {
             PrincipalSuspended suspended = new PrincipalSuspended(principalId);
 
             SuspendPrincipalResponseDto responseDto = new SuspendPrincipalResponseDto();
-            responseDto.setPrincipalId(principalId.toString());
+            responseDto.setId(principalId.toString());
             responseDto.setStatus("SUSPENDED");
 
             when(principalMapper.toCommand(any(SuspendPrincipalRequestDto.class), eq(principalId))).thenReturn(command);
@@ -400,7 +405,7 @@ class HumanPrincipalControllerIT {
     }
 
     @Nested
-    @DisplayName("POST /api/v1/iam/principals/{principalId}/deactivate - Deactivate Principal")
+    @DisplayName("POST /api/v1/iam/principals/{id}/deactivate - Deactivate Principal")
     class DeactivatePrincipal {
 
         @Test
@@ -421,7 +426,7 @@ class HumanPrincipalControllerIT {
             PrincipalDeactivated deactivated = new PrincipalDeactivated(principalId);
 
             DeactivatePrincipalResponseDto responseDto = new DeactivatePrincipalResponseDto();
-            responseDto.setPrincipalId(principalId.toString());
+            responseDto.setId(principalId.toString());
             responseDto.setStatus("INACTIVE");
 
             when(principalMapper.toCommand(any(DeactivatePrincipalRequestDto.class), eq(principalId))).thenReturn(command);
@@ -439,45 +444,6 @@ class HumanPrincipalControllerIT {
         }
     }
 
-    @Nested
-    @DisplayName("GET /api/v1/iam/principals/{principalId}/tenants - List Tenant Memberships")
-    class ListTenantMemberships {
-
-        @Test
-        @WithMockUser
-        @DisplayName("should return tenant memberships successfully")
-        void shouldReturnTenantMemberships() throws Exception {
-            // given
-            UUID principalId = UUID.randomUUID();
-            UUID tenantId = UUID.randomUUID();
-
-            TenantMembershipItem item = new TenantMembershipItem(
-                    UUID.randomUUID(), principalId, tenantId,
-                    LocalDate.now(), null, "ACTIVE", true
-            );
-
-            ListTenantMembershipsResult result = new ListTenantMembershipsResult(
-                    List.of(item), 1, 1, 50
-            );
-
-            ListTenantMembershipsResponseDto responseDto = new ListTenantMembershipsResponseDto();
-            responseDto.setTotal(1);
-            responseDto.setPage(1);
-            responseDto.setSize(50);
-
-            when(principalService.listTenantMemberships(principalId, 1, 50)).thenReturn(result);
-            when(principalMapper.toResponseDto(result)).thenReturn(responseDto);
-
-            // when / then
-            mockMvc.perform(get(BASE_URL + "/{principalId}/tenants", principalId)
-                            .param("page", "1")
-                            .param("size", "50"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.total").value(1))
-                    .andExpect(jsonPath("$.page").value(1))
-                    .andExpect(jsonPath("$.size").value(50));
-        }
-    }
 
     @Nested
     @DisplayName("GET /api/v1/iam/principals - Search Principals")

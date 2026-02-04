@@ -32,15 +32,14 @@
         <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring-cloud.version>2025.0.0</spring-cloud.version>
-        <openleap.base.version>1.2.6-SNAPSHOT</openleap.base.version>
+        <openleap.base.version>2.0.0-SNAPSHOT</openleap.base.version>
         <org.mapstruct.version>1.6.3</org.mapstruct.version>
     </properties>
     <dependencies>
         <dependency>
-            <groupId>io.openleap.starter</groupId>
-            <artifactId>core-testkit</artifactId>
+            <groupId>io.openleap.common</groupId>
+            <artifactId>core-service</artifactId>
             <version>${openleap.base.version}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -56,21 +55,6 @@
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.openleap.starter</groupId>
-            <artifactId>core-api</artifactId>
-            <version>${openleap.base.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.openleap.starter</groupId>
-            <artifactId>core-client</artifactId>
-            <version>${openleap.base.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.openleap.starter</groupId>
-            <artifactId>core-service</artifactId>
-            <version>${openleap.base.version}</version>
         </dependency>
         <dependency>
             <groupId>org.mapstruct</groupId>

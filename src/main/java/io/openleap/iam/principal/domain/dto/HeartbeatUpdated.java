@@ -10,7 +10,7 @@ public record HeartbeatUpdated(
     /**
      * Device principal ID
      */
-    UUID principalId,
+    UUID id,
 
     /**
      * Timestamp of the heartbeat

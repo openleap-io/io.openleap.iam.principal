@@ -2,16 +2,14 @@ package io.openleap.iam.principal.service;
 
 import io.openleap.iam.principal.domain.dto.CreateDevicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.DevicePrincipalCreated;
-import io.openleap.iam.principal.domain.entity.DevicePrincipalEntity;
-import io.openleap.iam.principal.domain.entity.DeviceType;
-import io.openleap.iam.principal.domain.entity.PrincipalStatus;
-import io.openleap.iam.principal.domain.entity.SyncStatus;
+import io.openleap.iam.principal.domain.entity.*;
+import io.openleap.iam.principal.domain.mapper.DevicePrincipalMapper;
 import io.openleap.iam.principal.exception.DeviceIdentifierAlreadyExistsException;
 import io.openleap.iam.principal.exception.TenantNotFoundException;
 import io.openleap.iam.principal.exception.UsernameAlreadyExistsException;
 import io.openleap.iam.principal.repository.DevicePrincipalRepository;
 import io.openleap.iam.principal.repository.PrincipalTenantMembershipRepository;
-import io.openleap.starter.core.messaging.event.EventPublisher;
+import io.openleap.common.messaging.event.EventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -37,13 +35,13 @@ class DevicePrincipalServiceTest {
     private DevicePrincipalRepository devicePrincipalRepository;
 
     @Mock
-    private PrincipalTenantMembershipRepository membershipRepository;
-
-    @Mock
     private TenantService tenantService;
 
     @Mock
     private EventPublisher eventPublisher;
+
+    @Mock
+    private DevicePrincipalMapper devicePrincipalMapper;
 
     private DevicePrincipalService devicePrincipalService;
 
@@ -51,9 +49,9 @@ class DevicePrincipalServiceTest {
     void setUp() {
         devicePrincipalService = new DevicePrincipalService(
                 devicePrincipalRepository,
-                membershipRepository,
                 tenantService,
-                eventPublisher
+                eventPublisher,
+                devicePrincipalMapper
         );
     }
 
@@ -80,24 +78,35 @@ class DevicePrincipalServiceTest {
 
             when(devicePrincipalRepository.existsByDeviceIdentifier("DEVICE_SENSOR_001")).thenReturn(false);
             when(devicePrincipalRepository.existsByUsername("device_sensor_001")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
+//            when(tenantService.tenantExists(tenantId)).thenReturn(true);
 
             DevicePrincipalEntity savedEntity = createDevicePrincipalEntity("device_sensor_001", "DEVICE_SENSOR_001");
             when(devicePrincipalRepository.save(any(DevicePrincipalEntity.class))).thenReturn(savedEntity);
+
+            DevicePrincipalCreated expectedCreated = new DevicePrincipalCreated(
+                    savedEntity.getBusinessId().value(),
+                    "device_sensor_001",
+                    "DEVICE_SENSOR_001",
+                    DeviceType.IOT_SENSOR,
+                    "Acme Corp",
+                    "SensorX200",
+                    "SHA256:device123"
+            );
+            when(devicePrincipalMapper.toDevicePrincipalCreated(any(DevicePrincipalEntity.class))).thenReturn(expectedCreated);
 
             // when
             DevicePrincipalCreated result = devicePrincipalService.createDevicePrincipal(command);
 
             // then
             assertThat(result).isNotNull();
-            assertThat(result.principalId()).isEqualTo(savedEntity.getPrincipalId());
+            assertThat(result.id().toString()).isEqualTo(savedEntity.getBusinessId().toString());
             assertThat(result.username()).isEqualTo("device_sensor_001");
             assertThat(result.deviceIdentifier()).isEqualTo("DEVICE_SENSOR_001");
             assertThat(result.deviceType()).isEqualTo(DeviceType.IOT_SENSOR);
             assertThat(result.manufacturer()).isEqualTo("Acme Corp");
             assertThat(result.model()).isEqualTo("SensorX200");
             verify(devicePrincipalRepository).save(any(DevicePrincipalEntity.class));
-            verify(membershipRepository).save(any());
+//            verify(membershipRepository).save(any());
         }
 
         @Test
@@ -155,33 +164,33 @@ class DevicePrincipalServiceTest {
             verify(devicePrincipalRepository, never()).save(any());
         }
 
-        @Test
-        @DisplayName("should throw TenantNotFoundException when tenant does not exist")
-        void shouldThrowExceptionWhenTenantNotFound() {
-            // given
-            UUID tenantId = UUID.randomUUID();
-            CreateDevicePrincipalCommand command = new CreateDevicePrincipalCommand(
-                    "NEW_DEVICE",
-                    DeviceType.IOT_SENSOR,
-                    tenantId,
-                    "Manufacturer",
-                    "Model",
-                    "v1.0",
-                    "SHA256:abc123",
-                    null,
-                    null
-            );
-
-            when(devicePrincipalRepository.existsByDeviceIdentifier("NEW_DEVICE")).thenReturn(false);
-            when(devicePrincipalRepository.existsByUsername("new_device")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(false);
-
-            // when / then
-            assertThatThrownBy(() -> devicePrincipalService.createDevicePrincipal(command))
-                    .isInstanceOf(TenantNotFoundException.class);
-
-            verify(devicePrincipalRepository, never()).save(any());
-        }
+//        @Test
+//        @DisplayName("should throw TenantNotFoundException when tenant does not exist")
+//        void shouldThrowExceptionWhenTenantNotFound() {
+//            // given
+//            UUID tenantId = UUID.randomUUID();
+//            CreateDevicePrincipalCommand command = new CreateDevicePrincipalCommand(
+//                    "NEW_DEVICE",
+//                    DeviceType.IOT_SENSOR,
+//                    tenantId,
+//                    "Manufacturer",
+//                    "Model",
+//                    "v1.0",
+//                    "SHA256:abc123",
+//                    null,
+//                    null
+//            );
+//
+//            when(devicePrincipalRepository.existsByDeviceIdentifier("NEW_DEVICE")).thenReturn(false);
+//            when(devicePrincipalRepository.existsByUsername("new_device")).thenReturn(false);
+//            when(tenantService.tenantExists(tenantId)).thenReturn(false);
+//
+//            // when / then
+//            assertThatThrownBy(() -> devicePrincipalService.createDevicePrincipal(command))
+//                    .isInstanceOf(TenantNotFoundException.class);
+//
+//            verify(devicePrincipalRepository, never()).save(any());
+//        }
 
         @Test
         @DisplayName("should throw IllegalArgumentException when certificate thumbprint is missing")
@@ -202,7 +211,7 @@ class DevicePrincipalServiceTest {
 
             when(devicePrincipalRepository.existsByDeviceIdentifier("NEW_DEVICE")).thenReturn(false);
             when(devicePrincipalRepository.existsByUsername("new_device")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
+//            when(tenantService.tenantExists(tenantId)).thenReturn(true);
 
             // when / then
             assertThatThrownBy(() -> devicePrincipalService.createDevicePrincipal(command))
@@ -231,7 +240,7 @@ class DevicePrincipalServiceTest {
 
             when(devicePrincipalRepository.existsByDeviceIdentifier("NEW_DEVICE")).thenReturn(false);
             when(devicePrincipalRepository.existsByUsername("new_device")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
+//            when(tenantService.tenantExists(tenantId)).thenReturn(true);
 
             // when / then
             assertThatThrownBy(() -> devicePrincipalService.createDevicePrincipal(command))
@@ -258,12 +267,12 @@ class DevicePrincipalServiceTest {
 
             when(devicePrincipalRepository.existsByDeviceIdentifier("NEW_DEVICE")).thenReturn(false);
             when(devicePrincipalRepository.existsByUsername("new_device")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
+//            when(tenantService.tenantExists(tenantId)).thenReturn(true);
 
             ArgumentCaptor<DevicePrincipalEntity> captor = ArgumentCaptor.forClass(DevicePrincipalEntity.class);
             when(devicePrincipalRepository.save(captor.capture())).thenAnswer(inv -> {
                 DevicePrincipalEntity entity = inv.getArgument(0);
-                entity.setPrincipalId(UUID.randomUUID());
+                entity.setBusinessId(PrincipalId.of(UUID.randomUUID()));
                 return entity;
             });
 
@@ -294,12 +303,12 @@ class DevicePrincipalServiceTest {
 
             when(devicePrincipalRepository.existsByDeviceIdentifier("NEW_DEVICE")).thenReturn(false);
             when(devicePrincipalRepository.existsByUsername("new_device")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
+//            when(tenantService.tenantExists(tenantId)).thenReturn(true);
 
             ArgumentCaptor<DevicePrincipalEntity> captor = ArgumentCaptor.forClass(DevicePrincipalEntity.class);
             when(devicePrincipalRepository.save(captor.capture())).thenAnswer(inv -> {
                 DevicePrincipalEntity entity = inv.getArgument(0);
-                entity.setPrincipalId(UUID.randomUUID());
+                entity.setBusinessId(PrincipalId.of(UUID.randomUUID()));
                 return entity;
             });
 
@@ -330,12 +339,12 @@ class DevicePrincipalServiceTest {
 
             when(devicePrincipalRepository.existsByDeviceIdentifier("MY_DEVICE_ID")).thenReturn(false);
             when(devicePrincipalRepository.existsByUsername("my_device_id")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
+//            when(tenantService.tenantExists(tenantId)).thenReturn(true);
 
             ArgumentCaptor<DevicePrincipalEntity> captor = ArgumentCaptor.forClass(DevicePrincipalEntity.class);
             when(devicePrincipalRepository.save(captor.capture())).thenAnswer(inv -> {
                 DevicePrincipalEntity entity = inv.getArgument(0);
-                entity.setPrincipalId(UUID.randomUUID());
+                entity.setBusinessId(PrincipalId.of(UUID.randomUUID()));
                 return entity;
             });
 
@@ -366,10 +375,10 @@ class DevicePrincipalServiceTest {
 
             when(devicePrincipalRepository.existsByDeviceIdentifier("NEW_DEVICE")).thenReturn(false);
             when(devicePrincipalRepository.existsByUsername("new_device")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
+//            when(tenantService.tenantExists(tenantId)).thenReturn(true);
 
             DevicePrincipalEntity savedEntity = new DevicePrincipalEntity();
-            savedEntity.setPrincipalId(UUID.randomUUID());
+            savedEntity.setBusinessId(PrincipalId.of(UUID.randomUUID()));
             savedEntity.setUsername("new_device");
             savedEntity.setDeviceIdentifier("NEW_DEVICE");
             savedEntity.setDeviceType(null);
@@ -378,8 +387,18 @@ class DevicePrincipalServiceTest {
             savedEntity.setCertificateThumbprint("SHA256:abc123");
             savedEntity.setStatus(PrincipalStatus.ACTIVE);
             savedEntity.setSyncStatus(SyncStatus.SYNCED);
-            savedEntity.setPrimaryTenantId(tenantId);
             when(devicePrincipalRepository.save(any())).thenReturn(savedEntity);
+
+            DevicePrincipalCreated expectedCreated = new DevicePrincipalCreated(
+                    savedEntity.getBusinessId().value(),
+                    "new_device",
+                    "NEW_DEVICE",
+                    null,
+                    "Manufacturer",
+                    "Model",
+                    "SHA256:abc123"
+            );
+            when(devicePrincipalMapper.toDevicePrincipalCreated(any(DevicePrincipalEntity.class))).thenReturn(expectedCreated);
 
             // when
             DevicePrincipalCreated result = devicePrincipalService.createDevicePrincipal(command);
@@ -407,12 +426,12 @@ class DevicePrincipalServiceTest {
 
             when(devicePrincipalRepository.existsByDeviceIdentifier("NEW_DEVICE")).thenReturn(false);
             when(devicePrincipalRepository.existsByUsername("new_device")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
+//            when(tenantService.tenantExists(tenantId)).thenReturn(true);
 
             ArgumentCaptor<DevicePrincipalEntity> captor = ArgumentCaptor.forClass(DevicePrincipalEntity.class);
             when(devicePrincipalRepository.save(captor.capture())).thenAnswer(inv -> {
                 DevicePrincipalEntity entity = inv.getArgument(0);
-                entity.setPrincipalId(UUID.randomUUID());
+                entity.setBusinessId(PrincipalId.of(UUID.randomUUID()));
                 return entity;
             });
 
@@ -429,7 +448,7 @@ class DevicePrincipalServiceTest {
 
     private DevicePrincipalEntity createDevicePrincipalEntity(String username, String deviceIdentifier) {
         DevicePrincipalEntity entity = new DevicePrincipalEntity();
-        entity.setPrincipalId(UUID.randomUUID());
+        entity.setBusinessId(PrincipalId.of(UUID.randomUUID()));
         entity.setUsername(username);
         entity.setDeviceIdentifier(deviceIdentifier);
         entity.setDeviceType(DeviceType.IOT_SENSOR);
@@ -438,7 +457,6 @@ class DevicePrincipalServiceTest {
         entity.setModel("SensorX200");
         entity.setStatus(PrincipalStatus.ACTIVE);
         entity.setSyncStatus(SyncStatus.SYNCED);
-        entity.setPrimaryTenantId(UUID.randomUUID());
         return entity;
     }
 }

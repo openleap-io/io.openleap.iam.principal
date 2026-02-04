@@ -11,7 +11,7 @@ public record CredentialsRotated(
     /**
      * Principal ID
      */
-    UUID principalId,
+    UUID id,
 
     /**
      * New API key (returned only once)

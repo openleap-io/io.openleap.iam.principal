@@ -7,7 +7,7 @@ import java.util.UUID;
  * Domain DTO for profile update result.
  */
 public record ProfileUpdated(
-    UUID principalId,
+    UUID id,
     List<String> changedFields
 ) {
 }

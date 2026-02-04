@@ -7,7 +7,8 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
-import static io.openleap.starter.core.security.SecurityKeycloakConfig.customJwtAuthenticationConverter;
+import static io.openleap.common.http.security.SecurityKeycloakConfig.customJwtAuthenticationConverter;
+
 
 @Profile({"keycloak"})
 @Configuration

@@ -1,5 +1,7 @@
 package io.openleap.iam.principal.domain.entity;
 
+import io.openleap.common.domain.DomainEntity;
+import io.openleap.common.persistence.entity.AuditableEntity;
 import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -9,16 +11,9 @@ import java.util.Map;
 import java.util.UUID;
 
 @MappedSuperclass
-public abstract class Principal {
-    
-    /**
-     * Unique identifier (PK, immutable, generated)
-     */
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "principal_id", nullable = false, updatable = false)
-    private UUID principalId;
-    
+public abstract class Principal extends AuditableEntity implements DomainEntity<PrincipalId> {
+    @Embedded
+    private PrincipalId businessId;
     /**
      * Login username (globally unique across all principal tables, max 100 chars, lowercase, immutable)
      */
@@ -34,8 +29,8 @@ public abstract class Principal {
     /**
      * Primary tenant (FK to iam_tenant.tenants)
      */
-    @Column(name = "primary_tenant_id", nullable = false, updatable = false)
-    private UUID primaryTenantId;
+    @Column(name = "default_tenant_id", nullable = false, updatable = false)
+    private UUID defaultTenantId;
     
     /**
      * Account state
@@ -63,32 +58,14 @@ public abstract class Principal {
      */
     @Column(name = "sync_retry_count", nullable = false)
     private Integer syncRetryCount = 0;
-    
-    /**
-     * Creation time (auto-generated)
-     */
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
-    
-    /**
-     * Creator principal ID (nullable)
-     */
-    @Column(name = "created_by")
-    private UUID createdBy;
-    
-    /**
-     * Last update time (auto-updated)
-     */
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-    
+
     @PrePersist
     protected void onCreate() {
-        if (createdAt == null) {
-            createdAt = Instant.now();
+        if (getCreatedAt() == null) {
+            setCreatedAt(Instant.now());
         }
-        if (updatedAt == null) {
-            updatedAt = Instant.now();
+        if (getUpdatedAt() == null) {
+            setUpdatedAt(Instant.now());
         }
         if (syncStatus == null) {
             syncStatus = SyncStatus.PENDING;
@@ -98,21 +75,25 @@ public abstract class Principal {
         }
     }
     
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = Instant.now();
-    }
-    
     // Getters and Setters
-    
-    public UUID getPrincipalId() {
-        return principalId;
+
+
+    public UUID getDefaultTenantId() {
+        return defaultTenantId;
     }
-    
-    public void setPrincipalId(UUID principalId) {
-        this.principalId = principalId;
+
+    public void setDefaultTenantId(UUID defaultTenantId) {
+        this.defaultTenantId = defaultTenantId;
     }
-    
+
+    @Override
+    public PrincipalId getBusinessId() {
+        return businessId;
+    }
+
+    public void setBusinessId(PrincipalId businessId) {
+        this.businessId = businessId;
+    }
     public String getUsername() {
         return username;
     }
@@ -127,14 +108,6 @@ public abstract class Principal {
     
     public void setEmail(String email) {
         this.email = email;
-    }
-    
-    public UUID getPrimaryTenantId() {
-        return primaryTenantId;
-    }
-    
-    public void setPrimaryTenantId(UUID primaryTenantId) {
-        this.primaryTenantId = primaryTenantId;
     }
     
     public PrincipalStatus getStatus() {
@@ -167,30 +140,6 @@ public abstract class Principal {
     
     public void setSyncRetryCount(Integer syncRetryCount) {
         this.syncRetryCount = syncRetryCount;
-    }
-    
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-    
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
-    
-    public UUID getCreatedBy() {
-        return createdBy;
-    }
-    
-    public void setCreatedBy(UUID createdBy) {
-        this.createdBy = createdBy;
-    }
-    
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-    
-    public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
     }
     
     /**

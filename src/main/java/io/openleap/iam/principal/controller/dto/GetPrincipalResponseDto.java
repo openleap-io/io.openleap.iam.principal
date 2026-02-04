@@ -12,8 +12,8 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class GetPrincipalResponseDto {
 
-    @JsonProperty("principal_id")
-    private String principalId;
+    @JsonProperty("id")
+    private String id;
 
     @JsonProperty("principal_type")
     private String principalType;
@@ -27,8 +27,8 @@ public class GetPrincipalResponseDto {
     @JsonProperty("status")
     private String status;
 
-    @JsonProperty("primary_tenant_id")
-    private String primaryTenantId;
+    @JsonProperty("default_tenant_id")
+    private String defaultTenantId;
 
     @JsonProperty("created_at")
     private String createdAt;
@@ -93,12 +93,12 @@ public class GetPrincipalResponseDto {
 
     // Getters and Setters
 
-    public String getPrincipalId() {
-        return principalId;
+    public String getId() {
+        return id;
     }
 
-    public void setPrincipalId(String principalId) {
-        this.principalId = principalId;
+    public void setId(String id) {
+        this.id = id;
     }
 
     public String getPrincipalType() {
@@ -133,12 +133,12 @@ public class GetPrincipalResponseDto {
         this.status = status;
     }
 
-    public String getPrimaryTenantId() {
-        return primaryTenantId;
+    public String getDefaultTenantId() {
+        return defaultTenantId;
     }
 
-    public void setPrimaryTenantId(String primaryTenantId) {
-        this.primaryTenantId = primaryTenantId;
+    public void setDefaultTenantId(String defaultTenantId) {
+        this.defaultTenantId = defaultTenantId;
     }
 
     public String getCreatedAt() {

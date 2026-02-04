@@ -9,7 +9,7 @@ import java.util.UUID;
  * Used by the service layer.
  */
 public record DevicePrincipalCreated(
-    UUID principalId,
+    UUID id,
     String username,
     String deviceIdentifier,
     DeviceType deviceType,

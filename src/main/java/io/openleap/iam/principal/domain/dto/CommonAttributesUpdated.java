@@ -9,6 +9,6 @@ public record CommonAttributesUpdated(
     /**
      * Principal ID that was updated
      */
-    UUID principalId
+    UUID id
 ) {
 }

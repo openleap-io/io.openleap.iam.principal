@@ -25,15 +25,7 @@ public class SystemPrincipalController {
         this.systemPrincipalService = systemPrincipalService;
         this.principalMapper = principalMapper;
     }
-    
-    /**
-     * Create a new system principal.
-     * 
-     * Requires permission: iam.system_principal:create
-     * 
-     * @param request the create request DTO
-     * @return response DTO containing the principal_id
-     */
+
     @PostMapping("/system")
     public ResponseEntity<CreateSystemPrincipalResponseDto> createSystemPrincipal(
             @Valid @RequestBody CreateSystemPrincipalRequestDto request) {

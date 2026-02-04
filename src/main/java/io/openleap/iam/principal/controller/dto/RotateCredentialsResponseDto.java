@@ -10,8 +10,8 @@ public class RotateCredentialsResponseDto {
     /**
      * Principal ID
      */
-    @JsonProperty("principal_id")
-    private String principalId;
+    @JsonProperty("id")
+    private String id;
 
     /**
      * New API key (returned only once)
@@ -45,12 +45,12 @@ public class RotateCredentialsResponseDto {
 
     // Getters and Setters
 
-    public String getPrincipalId() {
-        return principalId;
+    public String getId() {
+        return id;
     }
 
-    public void setPrincipalId(String principalId) {
-        this.principalId = principalId;
+    public void setId(String id) {
+        this.id = id;
     }
 
     public String getApiKey() {

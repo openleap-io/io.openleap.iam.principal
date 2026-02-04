@@ -1,7 +1,6 @@
 package io.openleap.iam.principal.controller.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -13,9 +12,8 @@ public class CreateServicePrincipalRequestDto {
     @NotBlank(message = "Service name is required")
     @Size(max = 200, message = "Service name must not exceed 200 characters")
     private String serviceName;
-    
-    @NotNull(message = "Primary tenant ID is required")
-    private UUID primaryTenantId;
+
+    private UUID defaultTenantId;
     
     private Map<String, Object> contextTags;
     
@@ -31,12 +29,12 @@ public class CreateServicePrincipalRequestDto {
         this.serviceName = serviceName;
     }
     
-    public UUID getPrimaryTenantId() {
-        return primaryTenantId;
+    public UUID getDefaultTenantId() {
+        return defaultTenantId;
     }
     
-    public void setPrimaryTenantId(UUID primaryTenantId) {
-        this.primaryTenantId = primaryTenantId;
+    public void setDefaultTenantId(UUID defaultTenantId) {
+        this.defaultTenantId = defaultTenantId;
     }
     
     public Map<String, Object> getContextTags() {

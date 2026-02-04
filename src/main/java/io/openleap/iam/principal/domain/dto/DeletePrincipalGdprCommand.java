@@ -9,7 +9,7 @@ public record DeletePrincipalGdprCommand(
     /**
      * Principal ID to delete
      */
-    UUID principalId,
+    UUID id,
 
     /**
      * Confirmation string (must be "DELETE")

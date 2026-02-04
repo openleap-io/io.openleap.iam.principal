@@ -16,10 +16,9 @@ public class CreateDevicePrincipalRequestDto {
     
     @NotNull(message = "Device type is required")
     private DeviceType deviceType;
-    
-    @NotNull(message = "Primary tenant ID is required")
-    private UUID primaryTenantId;
-    
+
+    private UUID defaultTenantId;
+
     @Size(max = 100, message = "Manufacturer must not exceed 100 characters")
     private String manufacturer;
     
@@ -55,12 +54,12 @@ public class CreateDevicePrincipalRequestDto {
         this.deviceType = deviceType;
     }
     
-    public UUID getPrimaryTenantId() {
-        return primaryTenantId;
+    public UUID getDefaultTenantId() {
+        return defaultTenantId;
     }
     
-    public void setPrimaryTenantId(UUID primaryTenantId) {
-        this.primaryTenantId = primaryTenantId;
+    public void setDefaultTenantId(UUID defaultTenantId) {
+        this.defaultTenantId = defaultTenantId;
     }
     
     public String getManufacturer() {

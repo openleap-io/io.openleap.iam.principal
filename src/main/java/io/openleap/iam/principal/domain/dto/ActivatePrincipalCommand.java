@@ -11,7 +11,7 @@ public record ActivatePrincipalCommand(
     /**
      * Principal ID to activate
      */
-    UUID principalId,
+    UUID id,
     
     /**
      * Email verification token (for self-activation)

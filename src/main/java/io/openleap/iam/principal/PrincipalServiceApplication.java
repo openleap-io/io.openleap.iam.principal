@@ -9,15 +9,15 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootApplication
 @ComponentScan(basePackages = {
     "io.openleap.iam.principal",
-    "io.openleap.starter.core"
+    "io.openleap.common"
 })
 @EntityScan(basePackages = {
         "io.openleap.iam.principal",
-        "io.openleap.starter.core"
+        "io.openleap.common"
 })
 @EnableJpaRepositories(basePackages = {
         "io.openleap.iam.principal",
-        "io.openleap.starter.core"
+        "io.openleap.common"
 })
 public class PrincipalServiceApplication {
     public static void main(String[] args) {

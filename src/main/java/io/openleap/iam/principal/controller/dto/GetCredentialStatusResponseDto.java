@@ -10,8 +10,8 @@ public class GetCredentialStatusResponseDto {
     /**
      * Principal ID
      */
-    @JsonProperty("principal_id")
-    private String principalId;
+    @JsonProperty("id")
+    private String id;
 
     /**
      * Principal type (SERVICE or SYSTEM)
@@ -57,12 +57,12 @@ public class GetCredentialStatusResponseDto {
 
     // Getters and Setters
 
-    public String getPrincipalId() {
-        return principalId;
+    public String getId() {
+        return id;
     }
 
-    public void setPrincipalId(String principalId) {
-        this.principalId = principalId;
+    public void setId(String id) {
+        this.id = id;
     }
 
     public String getPrincipalType() {

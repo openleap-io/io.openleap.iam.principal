@@ -8,7 +8,7 @@ import java.util.UUID;
  * Used by the service layer.
  */
 public record SystemPrincipalCreated(
-    UUID principalId,
+    UUID id,
     String username,
     String systemIdentifier,
     String integrationType,

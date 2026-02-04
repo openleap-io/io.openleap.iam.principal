@@ -64,7 +64,7 @@ class ServicePrincipalControllerIT {
 
             CreateServicePrincipalRequestDto request = new CreateServicePrincipalRequestDto();
             request.setServiceName("PaymentService");
-            request.setPrimaryTenantId(tenantId);
+            request.setDefaultTenantId(tenantId);
             request.setAllowedScopes(List.of("payments.read", "payments.write"));
 
             CreateServicePrincipalCommand command = new CreateServicePrincipalCommand(
@@ -78,7 +78,7 @@ class ServicePrincipalControllerIT {
             );
 
             CreateServicePrincipalResponseDto responseDto = new CreateServicePrincipalResponseDto();
-            responseDto.setPrincipalId(principalId);
+            responseDto.setId(principalId);
             responseDto.setUsername("paymentservice");
             responseDto.setStatus("ACTIVE");
 
@@ -104,7 +104,7 @@ class ServicePrincipalControllerIT {
             // given
             CreateServicePrincipalRequestDto request = new CreateServicePrincipalRequestDto();
             request.setServiceName("ExistingService");
-            request.setPrimaryTenantId(UUID.randomUUID());
+            request.setDefaultTenantId(UUID.randomUUID());
             request.setAllowedScopes(List.of("read"));
 
             when(principalMapper.toCommand(any(CreateServicePrincipalRequestDto.class))).thenReturn(mock(CreateServicePrincipalCommand.class));
@@ -128,7 +128,7 @@ class ServicePrincipalControllerIT {
             UUID tenantId = UUID.randomUUID();
             CreateServicePrincipalRequestDto request = new CreateServicePrincipalRequestDto();
             request.setServiceName("NewService");
-            request.setPrimaryTenantId(tenantId);
+            request.setDefaultTenantId(tenantId);
             request.setAllowedScopes(List.of("read"));
 
             when(principalMapper.toCommand(any(CreateServicePrincipalRequestDto.class))).thenReturn(mock(CreateServicePrincipalCommand.class));
@@ -146,7 +146,7 @@ class ServicePrincipalControllerIT {
     }
 
     @Nested
-    @DisplayName("POST /api/v1/iam/principals/{principalId}/rotate-credentials - Rotate Credentials")
+    @DisplayName("POST /api/v1/iam/principals/{id}/rotate-credentials - Rotate Credentials")
     class RotateCredentials {
 
         @Test
@@ -170,7 +170,7 @@ class ServicePrincipalControllerIT {
             );
 
             RotateCredentialsResponseDto responseDto = new RotateCredentialsResponseDto();
-            responseDto.setPrincipalId(principalId.toString());
+            responseDto.setId(principalId.toString());
             responseDto.setApiKey("sk_live_newApiKey");
             responseDto.setKeycloakClientSecret("new-keycloak-secret");
 

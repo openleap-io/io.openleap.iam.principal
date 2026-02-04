@@ -1,29 +1,26 @@
 package io.openleap.iam.principal.service;
 
-import io.openleap.iam.principal.domain.dto.CreateHumanPrincipalCommand;
-import io.openleap.iam.principal.domain.dto.HumanPrincipalCreated;
-import io.openleap.iam.principal.domain.dto.ProfileDetails;
-import io.openleap.iam.principal.domain.dto.UpdateProfileCommand;
-import io.openleap.iam.principal.domain.dto.ProfileUpdated;
-import io.openleap.iam.principal.domain.event.ProfileUpdatedEvent;
-import io.openleap.iam.principal.domain.entity.*;
+import io.openleap.common.messaging.event.EventPublisher;
+import io.openleap.iam.principal.domain.dto.*;
+import io.openleap.iam.principal.domain.entity.HumanPrincipalEntity;
+import io.openleap.iam.principal.domain.entity.PrincipalId;
+import io.openleap.iam.principal.domain.entity.PrincipalStatus;
+import io.openleap.iam.principal.domain.entity.SyncStatus;
 import io.openleap.iam.principal.domain.event.PrincipalCreatedEvent;
+import io.openleap.iam.principal.domain.event.ProfileUpdatedEvent;
+import io.openleap.iam.principal.domain.mapper.HumanPrincipalMapper;
 import io.openleap.iam.principal.exception.EmailAlreadyExistsException;
 import io.openleap.iam.principal.exception.InactivePrincipalFoundException;
-import io.openleap.iam.principal.exception.TenantNotFoundException;
 import io.openleap.iam.principal.exception.UsernameAlreadyExistsException;
 import io.openleap.iam.principal.repository.HumanPrincipalRepository;
-import io.openleap.iam.principal.repository.PrincipalTenantMembershipRepository;
 import io.openleap.iam.principal.service.keycloak.KeycloakService;
 import io.openleap.iam.principal.service.keycloak.dto.User;
-import io.openleap.starter.core.messaging.RoutingKey;
-import io.openleap.starter.core.messaging.event.EventPublisher;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.util.Collections;
 
 @Service
@@ -32,10 +29,10 @@ public class HumanPrincipalService {
     private static final Logger logger = LoggerFactory.getLogger(HumanPrincipalService.class);
 
     private final HumanPrincipalRepository humanPrincipalRepository;
-    private final PrincipalTenantMembershipRepository membershipRepository;
     private final TenantService tenantService;
     private final KeycloakService keycloakService;
     private final EventPublisher eventPublisher;
+    private final HumanPrincipalMapper humanPrincipalMapper;
 
 
     private static final String IAM_PRINCIPAL_EXCHANGE = "iam.principal.events";
@@ -55,89 +52,62 @@ public class HumanPrincipalService {
 
     public HumanPrincipalService(
             HumanPrincipalRepository humanPrincipalRepository,
-            PrincipalTenantMembershipRepository membershipRepository,
-            TenantService tenantService,
             KeycloakService keycloakService,
-            EventPublisher eventPublisher) {
+            TenantService tenantService,
+            EventPublisher eventPublisher,
+            HumanPrincipalMapper humanPrincipalMapper) {
         this.humanPrincipalRepository = humanPrincipalRepository;
-        this.membershipRepository = membershipRepository;
-        this.tenantService = tenantService;
         this.keycloakService = keycloakService;
+        this.tenantService = tenantService;
         this.eventPublisher = eventPublisher;
+        this.humanPrincipalMapper = humanPrincipalMapper;
     }
 
     @Transactional
     public HumanPrincipalCreated createHumanPrincipal(CreateHumanPrincipalCommand command) {
-        // Validate username uniqueness
         if (humanPrincipalRepository.existsByUsername(command.username())) {
             throw new UsernameAlreadyExistsException(command.username());
         }
 
-        // Validate email uniqueness
-        // Check for inactive principal with same email (Alt-1)
         var inactivePrincipal = humanPrincipalRepository.findInactiveByEmail(command.email());
         if (inactivePrincipal.isPresent()) {
             throw new InactivePrincipalFoundException(
-                    inactivePrincipal.get().getPrincipalId(),
+                    inactivePrincipal.get().getBusinessId().value(),
                     command.email()
             );
         }
 
-        // Check if email already exists (active principal)
         if (humanPrincipalRepository.existsByEmail(command.email())) {
             throw new EmailAlreadyExistsException(command.email());
         }
 
-        // Validate primary tenant exists
-        if (!tenantService.tenantExists(command.primaryTenantId())) {
-            throw new TenantNotFoundException(command.primaryTenantId());
-        }
+        HumanPrincipalEntity principal = createHumanPrincipalEntity(command);
 
-        // Create HumanPrincipalEntity
-        HumanPrincipalEntity principal = new HumanPrincipalEntity();
-        principal.setUsername(command.username());
-        principal.setFirstName(command.firstName());
-        principal.setLastName(command.lastName());
-        principal.setEmail(command.email());
-        principal.setPrimaryTenantId(command.primaryTenantId());
-        principal.setStatus(PrincipalStatus.PENDING);
-        principal.setSyncStatus(SyncStatus.PENDING);
-        principal.setContextTags(command.contextTags());
-
-        // Set profile fields with defaults if not provided
-        if (command.displayName() != null && !command.displayName().isBlank()) {
-            principal.setDisplayName(command.displayName());
-        } else {
-            // Default display name from username
-            principal.setDisplayName(command.username());
-        }
-
-        principal.setPhone(command.phone());
-        principal.setLanguage(command.language());
-        principal.setTimezone(command.timezone());
-        principal.setLocale(command.locale());
-        principal.setAvatarUrl(command.avatarUrl());
-        principal.setBio(command.bio());
-        principal.setPreferences(command.preferences());
-
-        // Save principal
         principal = humanPrincipalRepository.save(principal);
 
-        // Create PrincipalTenantMembership for primary tenant
-        PrincipalTenantMembershipEntity membership = new PrincipalTenantMembershipEntity();
-        membership.setPrincipalId(principal.getPrincipalId());
-        membership.setPrincipalType(PrincipalType.HUMAN);
-        membership.setTenantId(command.primaryTenantId());
-        membership.setValidFrom(LocalDate.now());
-        membership.setStatus(io.openleap.iam.principal.domain.entity.MembershipStatus.ACTIVE);
+        //TODO: call iam.tenant for membership
 
-        membershipRepository.save(membership);
+        String keycloakUserId = createUserInKeycloak(principal);
 
+        principal.setSyncStatus(SyncStatus.SYNCED);
+        principal.setKeycloakUserId(keycloakUserId);
+        humanPrincipalRepository.save(principal);
+
+        PrincipalCreatedEvent event = humanPrincipalMapper.toPrincipalCreatedEvent(principal);
+
+        //TODO: add messaging
+//        RoutingKey routingKey = new RoutingKey(PRINCIPAL_CREATED_KEY, NO_DESC, "", "");
+//        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
+
+        return humanPrincipalMapper.toHumanPrincipalCreated(principal);
+    }
+
+    private String createUserInKeycloak(HumanPrincipalEntity principal) {
         String keycloakUserId;
         try {
             // Create user in Keycloak
             User keycloakUser = User.builder()
-                    .id(principal.getPrincipalId().toString())
+                    .id(principal.getBusinessId().toString())
                     .username(principal.getUsername())
                     .email(principal.getEmail())
                     .firstName(principal.getFirstName())
@@ -150,39 +120,45 @@ public class HumanPrincipalService {
             // Rollback transaction by throwing a runtime exception
             throw new RuntimeException("Failed to create user in Keycloak: " + e.getMessage(), e);
         }
+        return keycloakUserId;
+    }
 
-        principal.setSyncStatus(SyncStatus.SYNCED);
-        principal.setKeycloakUserId(keycloakUserId);
-        humanPrincipalRepository.save(principal);
+    private static @NonNull HumanPrincipalEntity createHumanPrincipalEntity(CreateHumanPrincipalCommand command) {
+        HumanPrincipalEntity principal = new HumanPrincipalEntity();
+        principal.setBusinessId(PrincipalId.create());
+        principal.setUsername(command.username());
+        principal.setFirstName(command.firstName());
+        principal.setLastName(command.lastName());
+        principal.setEmail(command.email());
+        principal.setDefaultTenantId(command.defaultTenantId());
+        principal.setStatus(PrincipalStatus.PENDING);
+        principal.setSyncStatus(SyncStatus.PENDING);
+        principal.setContextTags(command.contextTags());
 
-
-        PrincipalCreatedEvent event = new PrincipalCreatedEvent(
-                principal.getPrincipalId(),
-                principal.getPrincipalType().name(),
-                principal.getUsername(),
-                principal.getEmail(),
-                principal.getPrimaryTenantId(),
-                principal.getStatus().name(),
-                principal.getCreatedBy()
-        );
-
-
-        //TODO: payload fix
-        RoutingKey routingKey = new RoutingKey(PRINCIPAL_CREATED_KEY, NO_DESC, "", "");
-        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
-
-        return new HumanPrincipalCreated(principal.getPrincipalId());
+        if (command.displayName() != null && !command.displayName().isBlank()) {
+            principal.setDisplayName(command.displayName());
+        } else {
+            principal.setDisplayName(command.username());
+        }
+        principal.setPhone(command.phone());
+        principal.setLanguage(command.language());
+        principal.setTimezone(command.timezone());
+        principal.setLocale(command.locale());
+        principal.setAvatarUrl(command.avatarUrl());
+        principal.setBio(command.bio());
+        principal.setPreferences(command.preferences());
+        return principal;
     }
 
     @Transactional
     public ProfileUpdated updateProfile(UpdateProfileCommand command) {
         // Load principal
-        HumanPrincipalEntity principal = humanPrincipalRepository.findByPrincipalId(command.principalId())
-                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.principalId()));
+        HumanPrincipalEntity principal = humanPrincipalRepository.findByBusinessId(PrincipalId.of(command.id()))
+                .orElseThrow(() -> new RuntimeException("Principal not found: " + command.id()));
 
         // Validate principal is ACTIVE
         if (principal.getStatus() != PrincipalStatus.ACTIVE) {
-            throw new InactivePrincipalFoundException(principal.getPrincipalId(), principal.getEmail());
+            throw new InactivePrincipalFoundException(principal.getBusinessId().value(), principal.getEmail());
         }
 
         // Track changed fields
@@ -197,7 +173,7 @@ public class HumanPrincipalService {
             principal.setLastName(command.lastName());
             changedFields.add("last_name");
         }
-        if (command.displayName() != null && !command.displayName().isBlank() 
+        if (command.displayName() != null && !command.displayName().isBlank()
                 && !command.displayName().equals(principal.getDisplayName())) {
             principal.setDisplayName(command.displayName());
             changedFields.add("display_name");
@@ -237,7 +213,7 @@ public class HumanPrincipalService {
 
         // If no fields changed, return early
         if (changedFields.isEmpty()) {
-            return new ProfileUpdated(principal.getPrincipalId(), Collections.emptyList());
+            return new ProfileUpdated(principal.getBusinessId().value(), Collections.emptyList());
         }
 
         // Save principal
@@ -247,7 +223,7 @@ public class HumanPrincipalService {
         if (principal.getKeycloakUserId() != null && !principal.getKeycloakUserId().isBlank()) {
             try {
                 User keycloakUser = User.builder()
-                        .id(principal.getPrincipalId().toString())
+                        .id(principal.getBusinessId().toString())
                         .username(principal.getUsername())
                         .email(principal.getEmail())
                         .firstName(principal.getFirstName())
@@ -258,47 +234,27 @@ public class HumanPrincipalService {
                 keycloakService.updateUser(principal.getKeycloakUserId(), keycloakUser);
             } catch (Exception e) {
                 // Log error but don't fail the transaction - profile update should succeed even if Keycloak sync fails
-                logger.error("Failed to sync profile update to Keycloak for principal: " + principal.getPrincipalId(), e);
+                logger.error("Failed to sync profile update to Keycloak for principal: " + principal.getBusinessId(), e);
             }
         }
 
         // Publish event
         ProfileUpdatedEvent event = new ProfileUpdatedEvent(
-                principal.getPrincipalId(),
-                principal.getPrincipalId(), // TODO: Get actual updated_by from security context
+                principal.getBusinessId().value(),
+                principal.getBusinessId().value(), // TODO: Get actual updated_by from security context
                 changedFields
         );
 
-        RoutingKey routingKey = new RoutingKey(PROFILE_UPDATED_KEY, NO_DESC, "", "");
-        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
-
-        return new ProfileUpdated(principal.getPrincipalId(), changedFields);
+//        RoutingKey routingKey = new RoutingKey(PROFILE_UPDATED_KEY, NO_DESC, "", "");
+//        eventPublisher.enqueue(IAM_PRINCIPAL_EXCHANGE, routingKey, null, Collections.emptyMap());
+        return new ProfileUpdated(principal.getBusinessId().value(), changedFields);
     }
 
-    /**
-     * Gets profile details for a human principal.
-     *
-     * @param principalId the principal ID
-     * @return the profile details
-     */
+
     @Transactional(readOnly = true)
     public ProfileDetails getProfile(java.util.UUID principalId) {
-        // Load principal
-        HumanPrincipalEntity principal = humanPrincipalRepository.findByPrincipalId(principalId)
+        HumanPrincipalEntity principal = humanPrincipalRepository.findByBusinessId(principalId)
                 .orElseThrow(() -> new RuntimeException("Principal not found: " + principalId));
-
-        return new ProfileDetails(
-                principal.getPrincipalId(),
-                principal.getFirstName(),
-                principal.getLastName(),
-                principal.getDisplayName(),
-                principal.getPhone(),
-                principal.getLanguage(),
-                principal.getTimezone(),
-                principal.getLocale(),
-                principal.getAvatarUrl(),
-                principal.getBio(),
-                principal.getPreferences()
-        );
+        return humanPrincipalMapper.toProfileDetails(principal);
     }
 }

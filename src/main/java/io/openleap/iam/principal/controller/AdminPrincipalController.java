@@ -10,8 +10,9 @@ import org.springframework.web.bind.annotation.*;
 /**
  * Admin controller for cross-tenant principal operations.
  */
-@RestController
-@RequestMapping("/api/v1/iam/admin/principals")
+//TODO: Enable when cross-tenant principal search is implemented
+//@RestController
+//@RequestMapping("/api/v1/iam/admin/principals")
 public class AdminPrincipalController {
 
     private final PrincipalService principalService;
@@ -34,18 +35,18 @@ public class AdminPrincipalController {
      * @param size page size (default 50, max 100)
      * @return paginated search results across all tenants
      */
-    @GetMapping
-    public ResponseEntity<CrossTenantSearchResponseDto> searchPrincipalsCrossTenant(
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false, name = "principal_type") String principalType,
-            @RequestParam(required = false) String status,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "50") int size) {
-
-        var query = new CrossTenantSearchQuery(search, principalType, status, page, size);
-        var result = principalService.searchPrincipalsCrossTenant(query);
-        var response = principalMapper.toResponseDto(result);
-
-        return ResponseEntity.ok(response);
-    }
+//    @GetMapping
+//    public ResponseEntity<CrossTenantSearchResponseDto> searchPrincipalsCrossTenant(
+//            @RequestParam(required = false) String search,
+//            @RequestParam(required = false, name = "principal_type") String principalType,
+//            @RequestParam(required = false) String status,
+//            @RequestParam(defaultValue = "1") int page,
+//            @RequestParam(defaultValue = "50") int size) {
+//
+//        var query = new CrossTenantSearchQuery(search, principalType, status, page, size);
+//        var result = principalService.searchPrincipalsCrossTenant(query);
+//        var response = principalMapper.toResponseDto(result);
+//
+//        return ResponseEntity.ok(response);
+//    }
 }

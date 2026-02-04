@@ -10,7 +10,7 @@ import java.util.UUID;
 public record CreateHumanPrincipalCommand(
     String username,
     String email,
-    UUID primaryTenantId,
+    UUID defaultTenantId,
     Map<String, Object> contextTags,
     String displayName,
     String firstName,

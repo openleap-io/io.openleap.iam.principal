@@ -9,7 +9,7 @@ public record SuspendPrincipalCommand(
     /**
      * Principal ID to suspend
      */
-    UUID principalId,
+    UUID id,
     
     /**
      * Reason for suspension (required)

@@ -10,7 +10,7 @@ public record UpdateCommonAttributesCommand(
     /**
      * Principal ID to update
      */
-    UUID principalId,
+    UUID id,
 
     /**
      * Optional business hints (lightweight classification only, max 10KB)

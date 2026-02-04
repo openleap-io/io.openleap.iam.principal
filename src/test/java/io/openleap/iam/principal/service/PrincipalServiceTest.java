@@ -2,9 +2,14 @@ package io.openleap.iam.principal.service;
 
 import io.openleap.iam.principal.domain.dto.*;
 import io.openleap.iam.principal.domain.entity.*;
+import io.openleap.iam.principal.domain.event.PrincipalDeactivatedEvent;
+import io.openleap.iam.principal.domain.event.PrincipalSuspendedEvent;
+import io.openleap.iam.principal.domain.mapper.PrincipalEventMapper;
+import io.openleap.iam.principal.domain.mapper.ServicePrincipalMapper;
+import io.openleap.iam.principal.domain.mapper.SystemPrincipalMapper;
 import io.openleap.iam.principal.repository.*;
 import io.openleap.iam.principal.service.keycloak.KeycloakService;
-import io.openleap.starter.core.messaging.event.EventPublisher;
+import io.openleap.common.messaging.event.EventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,7 +21,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,13 +47,19 @@ class PrincipalServiceTest {
     private DevicePrincipalRepository devicePrincipalRepository;
 
     @Mock
-    private PrincipalTenantMembershipRepository membershipRepository;
-
-    @Mock
     private KeycloakService keycloakService;
 
     @Mock
     private EventPublisher eventPublisher;
+
+    @Mock
+    private ServicePrincipalMapper servicePrincipalMapper;
+
+    @Mock
+    private SystemPrincipalMapper systemPrincipalMapper;
+
+    @Mock
+    private PrincipalEventMapper principalEventMapper;
 
     private PrincipalService principalService;
 
@@ -60,9 +70,11 @@ class PrincipalServiceTest {
                 servicePrincipalRepository,
                 systemPrincipalRepository,
                 devicePrincipalRepository,
-                membershipRepository,
                 keycloakService,
-                eventPublisher
+                eventPublisher,
+                servicePrincipalMapper,
+                systemPrincipalMapper,
+                principalEventMapper
         );
     }
 
@@ -76,14 +88,14 @@ class PrincipalServiceTest {
             // given
             UUID principalId = UUID.randomUUID();
             HumanPrincipalEntity humanPrincipal = createHumanPrincipal(principalId);
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(humanPrincipal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(humanPrincipal));
 
             // when
-            Optional<Principal> result = principalService.findPrincipalById(principalId);
+            Optional<Principal> result = principalService.findPrincipalByBusinessId(PrincipalId.of(principalId));
 
             // then
             assertThat(result).isPresent();
-            assertThat(result.get().getPrincipalId()).isEqualTo(principalId);
+            assertThat(result.get().getBusinessId().toString()).isEqualTo(principalId.toString());
             assertThat(result.get().getPrincipalType()).isEqualTo(PrincipalType.HUMAN);
         }
 
@@ -93,11 +105,11 @@ class PrincipalServiceTest {
             // given
             UUID principalId = UUID.randomUUID();
             ServicePrincipalEntity servicePrincipal = createServicePrincipal(principalId);
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
-            when(servicePrincipalRepository.findById(principalId)).thenReturn(Optional.of(servicePrincipal));
+            when(servicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.empty());
+            when(servicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(servicePrincipal));
 
             // when
-            Optional<Principal> result = principalService.findPrincipalById(principalId);
+            Optional<Principal> result = principalService.findPrincipalByBusinessId(PrincipalId.of(principalId));
 
             // then
             assertThat(result).isPresent();
@@ -109,13 +121,13 @@ class PrincipalServiceTest {
         void shouldReturnEmptyWhenNotFound() {
             // given
             UUID principalId = UUID.randomUUID();
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
-            when(servicePrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
-            when(systemPrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
-            when(devicePrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.empty());
+            when(servicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.empty());
+            when(systemPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.empty());
+            when(devicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.empty());
 
             // when
-            Optional<Principal> result = principalService.findPrincipalById(principalId);
+            Optional<Principal> result = principalService.findPrincipalByBusinessId(PrincipalId.of(principalId));
 
             // then
             assertThat(result).isEmpty();
@@ -139,7 +151,7 @@ class PrincipalServiceTest {
                     principalId, null, true, "Admin activation"
             );
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
             when(humanPrincipalRepository.save(any())).thenReturn(principal);
 
             // when
@@ -147,7 +159,7 @@ class PrincipalServiceTest {
 
             // then
             assertThat(result).isNotNull();
-            assertThat(result.principalId()).isEqualTo(principalId);
+            assertThat(result.id()).isEqualTo(principalId);
             assertThat(principal.getStatus()).isEqualTo(PrincipalStatus.ACTIVE);
             verify(keycloakService).updateUser(eq("keycloak-123"), any());
         }
@@ -159,10 +171,10 @@ class PrincipalServiceTest {
             UUID principalId = UUID.randomUUID();
             ActivatePrincipalCommand command = new ActivatePrincipalCommand(principalId, null, false, null);
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
-            when(servicePrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
-            when(systemPrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
-            when(devicePrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.empty());
+            when(servicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.empty());
+            when(systemPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.empty());
+            when(devicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.empty());
 
             // when / then
             assertThatThrownBy(() -> principalService.activatePrincipal(command))
@@ -180,7 +192,7 @@ class PrincipalServiceTest {
 
             ActivatePrincipalCommand command = new ActivatePrincipalCommand(principalId, null, false, null);
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
 
             // when / then
             assertThatThrownBy(() -> principalService.activatePrincipal(command))
@@ -202,7 +214,7 @@ class PrincipalServiceTest {
                     principalId, "verification-token", false, null
             );
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
             when(humanPrincipalRepository.save(any())).thenReturn(principal);
 
             // when
@@ -230,16 +242,18 @@ class PrincipalServiceTest {
                     principalId, "Security concern", "INC-12345"
             );
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
             when(humanPrincipalRepository.save(any())).thenReturn(principal);
-            when(membershipRepository.findByPrincipalId(principalId)).thenReturn(List.of());
+            when(principalEventMapper.toPrincipalSuspendedEvent(any(), any())).thenReturn(
+                    new PrincipalSuspendedEvent(principalId, "HUMAN", "SUSPENDED", "Security concern", "INC-12345")
+            );
 
             // when
             PrincipalSuspended result = principalService.suspendPrincipal(command);
 
             // then
             assertThat(result).isNotNull();
-            assertThat(result.principalId()).isEqualTo(principalId);
+            assertThat(result.id()).isEqualTo(principalId);
             assertThat(principal.getStatus()).isEqualTo(PrincipalStatus.SUSPENDED);
             verify(keycloakService).updateUser(eq("keycloak-123"), any());
         }
@@ -254,7 +268,7 @@ class PrincipalServiceTest {
 
             SuspendPrincipalCommand command = new SuspendPrincipalCommand(principalId, "Reason", null);
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
 
             // when / then
             assertThatThrownBy(() -> principalService.suspendPrincipal(command))
@@ -262,30 +276,30 @@ class PrincipalServiceTest {
                     .hasMessageContaining("ACTIVE");
         }
 
-        @Test
-        @DisplayName("should suspend active memberships")
-        void shouldSuspendActiveMemberships() {
-            // given
-            UUID principalId = UUID.randomUUID();
-            HumanPrincipalEntity principal = createHumanPrincipal(principalId);
-            principal.setStatus(PrincipalStatus.ACTIVE);
-
-            PrincipalTenantMembershipEntity membership = new PrincipalTenantMembershipEntity();
-            membership.setStatus(MembershipStatus.ACTIVE);
-
-            SuspendPrincipalCommand command = new SuspendPrincipalCommand(principalId, "Reason", null);
-
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
-            when(humanPrincipalRepository.save(any())).thenReturn(principal);
-            when(membershipRepository.findByPrincipalId(principalId)).thenReturn(List.of(membership));
-
-            // when
-            principalService.suspendPrincipal(command);
-
-            // then
-            assertThat(membership.getStatus()).isEqualTo(MembershipStatus.SUSPENDED);
-            verify(membershipRepository).save(membership);
-        }
+//        @Test
+//        @DisplayName("should suspend active memberships")
+//        void shouldSuspendActiveMemberships() {
+//            // given
+//            UUID principalId = UUID.randomUUID();
+//            HumanPrincipalEntity principal = createHumanPrincipal(principalId);
+//            principal.setStatus(PrincipalStatus.ACTIVE);
+//
+//            PrincipalTenantMembershipEntity membership = new PrincipalTenantMembershipEntity();
+//            membership.setStatus(MembershipStatus.ACTIVE);
+//
+//            SuspendPrincipalCommand command = new SuspendPrincipalCommand(principalId, "Reason", null);
+//
+//            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
+//            when(humanPrincipalRepository.save(any())).thenReturn(principal);
+////            when(membershipRepository.findByPrincipalId(principalId)).thenReturn(List.of(membership));
+//
+//            // when
+//            principalService.suspendPrincipal(command);
+//
+//            // then
+//            assertThat(membership.getStatus()).isEqualTo(MembershipStatus.SUSPENDED);
+////            verify(membershipRepository).save(membership);
+//        }
     }
 
     @Nested
@@ -304,8 +318,11 @@ class PrincipalServiceTest {
                     principalId, "Left company", LocalDate.now()
             );
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
             when(humanPrincipalRepository.save(any())).thenReturn(principal);
+            when(principalEventMapper.toPrincipalDeactivatedEvent(any(), any())).thenReturn(
+                    new PrincipalDeactivatedEvent(principalId, "HUMAN", "INACTIVE", "Left company", LocalDate.now())
+            );
 
             // when
             PrincipalDeactivated result = principalService.deactivatePrincipal(command);
@@ -327,8 +344,11 @@ class PrincipalServiceTest {
                     principalId, "Account terminated", LocalDate.now()
             );
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
             when(humanPrincipalRepository.save(any())).thenReturn(principal);
+            when(principalEventMapper.toPrincipalDeactivatedEvent(any(), any())).thenReturn(
+                    new PrincipalDeactivatedEvent(principalId, "HUMAN", "INACTIVE", "Account terminated", LocalDate.now())
+            );
 
             // when
             PrincipalDeactivated result = principalService.deactivatePrincipal(command);
@@ -348,7 +368,7 @@ class PrincipalServiceTest {
 
             DeactivatePrincipalCommand command = new DeactivatePrincipalCommand(principalId, "Reason", null);
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
 
             // when / then
             assertThatThrownBy(() -> principalService.deactivatePrincipal(command))
@@ -375,9 +395,9 @@ class PrincipalServiceTest {
                     principalId, "DELETE", "GDPR-12345", "requestor@example.com"
             );
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
             when(humanPrincipalRepository.save(any())).thenReturn(principal);
-            when(membershipRepository.findByPrincipalId(principalId)).thenReturn(List.of());
+//            when(membershipRepository.findByPrincipalId(principalId)).thenReturn(List.of());
 
             // when
             PrincipalDeleted result = principalService.deletePrincipalGdpr(command);
@@ -403,7 +423,7 @@ class PrincipalServiceTest {
                     principalId, "DELETE", "GDPR-12345", "requestor@example.com"
             );
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
 
             // when / then
             assertThatThrownBy(() -> principalService.deletePrincipalGdpr(command))
@@ -424,7 +444,7 @@ class PrincipalServiceTest {
                     principalId, "DELETE", "GDPR-12345", "requestor@example.com"
             );
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
 
             // when / then
             assertThatThrownBy(() -> principalService.deletePrincipalGdpr(command))
@@ -446,15 +466,20 @@ class PrincipalServiceTest {
             principal.setApiKeyHash("someHash");
             principal.setCredentialRotationDate(LocalDate.now().plusDays(30));
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
-            when(servicePrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(servicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
+
+            CredentialStatus expectedStatus = new CredentialStatus(
+                    principalId, "SERVICE", LocalDate.now().plusDays(30), 30L,
+                    null, false, true, false
+            );
+            when(servicePrincipalMapper.toCredentialStatus(any(ServicePrincipalEntity.class))).thenReturn(expectedStatus);
 
             // when
-            CredentialStatus result = principalService.getCredentialStatus(principalId);
+            CredentialStatus result = principalService.getCredentialStatus(PrincipalId.of(principalId));
 
             // then
             assertThat(result).isNotNull();
-            assertThat(result.principalId()).isEqualTo(principalId);
+            assertThat(result.id()).isEqualTo(principalId);
             assertThat(result.principalType()).isEqualTo("SERVICE");
             assertThat(result.hasApiKey()).isTrue();
             assertThat(result.daysUntilRotation()).isEqualTo(30);
@@ -468,198 +493,12 @@ class PrincipalServiceTest {
             UUID principalId = UUID.randomUUID();
             HumanPrincipalEntity principal = createHumanPrincipal(principalId);
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
 
             // when / then
-            assertThatThrownBy(() -> principalService.getCredentialStatus(principalId))
+            assertThatThrownBy(() -> principalService.getCredentialStatus(PrincipalId.of(principalId)))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("SERVICE or SYSTEM");
-        }
-    }
-
-    @Nested
-    @DisplayName("listTenantMemberships")
-    class ListTenantMemberships {
-
-        @Test
-        @DisplayName("should return paginated tenant memberships")
-        void shouldReturnPaginatedMemberships() {
-            // given
-            UUID principalId = UUID.randomUUID();
-            UUID tenantId = UUID.randomUUID();
-            HumanPrincipalEntity principal = createHumanPrincipal(principalId);
-            principal.setPrimaryTenantId(tenantId);
-
-            PrincipalTenantMembershipEntity membership = new PrincipalTenantMembershipEntity();
-            membership.setId(UUID.randomUUID());
-            membership.setPrincipalId(principalId);
-            membership.setTenantId(tenantId);
-            membership.setStatus(MembershipStatus.ACTIVE);
-            membership.setValidFrom(LocalDate.now());
-
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
-            when(membershipRepository.findByPrincipalId(principalId)).thenReturn(List.of(membership));
-
-            // when
-            ListTenantMembershipsResult result = principalService.listTenantMemberships(principalId, 1, 10);
-
-            // then
-            assertThat(result).isNotNull();
-            assertThat(result.items()).hasSize(1);
-            assertThat(result.items().get(0).isPrimary()).isTrue();
-        }
-
-        @Test
-        @DisplayName("should throw exception when principal not found")
-        void shouldThrowExceptionWhenPrincipalNotFound() {
-            // given
-            UUID principalId = UUID.randomUUID();
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
-            when(servicePrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
-            when(systemPrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
-            when(devicePrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
-
-            // when / then
-            assertThatThrownBy(() -> principalService.listTenantMemberships(principalId, 1, 10))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("not found");
-        }
-    }
-
-    @Nested
-    @DisplayName("addTenantMembership")
-    class AddTenantMembership {
-
-        @Test
-        @DisplayName("should add tenant membership successfully")
-        void shouldAddTenantMembershipSuccessfully() {
-            // given
-            UUID principalId = UUID.randomUUID();
-            UUID tenantId = UUID.randomUUID();
-            HumanPrincipalEntity principal = createHumanPrincipal(principalId);
-            principal.setStatus(PrincipalStatus.ACTIVE);
-
-            AddTenantMembershipCommand command = new AddTenantMembershipCommand(
-                    principalId, tenantId, LocalDate.now(), null, null
-            );
-
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
-            when(membershipRepository.findByPrincipalIdAndTenantIdAndStatus(
-                    principalId, tenantId, MembershipStatus.ACTIVE)).thenReturn(Optional.empty());
-            when(membershipRepository.save(any())).thenAnswer(inv -> {
-                PrincipalTenantMembershipEntity entity = inv.getArgument(0);
-                entity.setId(UUID.randomUUID());
-                entity.setCreatedAt(Instant.now());
-                return entity;
-            });
-
-            // when
-            TenantMembershipAdded result = principalService.addTenantMembership(command);
-
-            // then
-            assertThat(result).isNotNull();
-            assertThat(result.principalId()).isEqualTo(principalId);
-            assertThat(result.tenantId()).isEqualTo(tenantId);
-            assertThat(result.status()).isEqualTo("ACTIVE");
-        }
-
-        @Test
-        @DisplayName("should throw exception when principal is not ACTIVE")
-        void shouldThrowExceptionWhenPrincipalNotActive() {
-            // given
-            UUID principalId = UUID.randomUUID();
-            UUID tenantId = UUID.randomUUID();
-            HumanPrincipalEntity principal = createHumanPrincipal(principalId);
-            principal.setStatus(PrincipalStatus.SUSPENDED);
-
-            AddTenantMembershipCommand command = new AddTenantMembershipCommand(
-                    principalId, tenantId, null, null, null
-            );
-
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
-
-            // when / then
-            assertThatThrownBy(() -> principalService.addTenantMembership(command))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("not ACTIVE");
-        }
-
-        @Test
-        @DisplayName("should throw exception when active membership already exists")
-        void shouldThrowExceptionWhenMembershipExists() {
-            // given
-            UUID principalId = UUID.randomUUID();
-            UUID tenantId = UUID.randomUUID();
-            HumanPrincipalEntity principal = createHumanPrincipal(principalId);
-            principal.setStatus(PrincipalStatus.ACTIVE);
-
-            PrincipalTenantMembershipEntity existingMembership = new PrincipalTenantMembershipEntity();
-
-            AddTenantMembershipCommand command = new AddTenantMembershipCommand(
-                    principalId, tenantId, null, null, null
-            );
-
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
-            when(membershipRepository.findByPrincipalIdAndTenantIdAndStatus(
-                    principalId, tenantId, MembershipStatus.ACTIVE)).thenReturn(Optional.of(existingMembership));
-
-            // when / then
-            assertThatThrownBy(() -> principalService.addTenantMembership(command))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("already exists");
-        }
-    }
-
-    @Nested
-    @DisplayName("removeTenantMembership")
-    class RemoveTenantMembership {
-
-        @Test
-        @DisplayName("should remove tenant membership successfully")
-        void shouldRemoveTenantMembershipSuccessfully() {
-            // given
-            UUID principalId = UUID.randomUUID();
-            UUID tenantId = UUID.randomUUID();
-            UUID primaryTenantId = UUID.randomUUID();
-            HumanPrincipalEntity principal = createHumanPrincipal(principalId);
-            principal.setPrimaryTenantId(primaryTenantId);
-
-            PrincipalTenantMembershipEntity membership = new PrincipalTenantMembershipEntity();
-            membership.setStatus(MembershipStatus.ACTIVE);
-
-            RemoveTenantMembershipCommand command = new RemoveTenantMembershipCommand(principalId, tenantId);
-
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
-            when(membershipRepository.findByPrincipalIdAndTenantIdAndStatus(
-                    principalId, tenantId, MembershipStatus.ACTIVE)).thenReturn(Optional.of(membership));
-
-            // when
-            principalService.removeTenantMembership(command);
-
-            // then
-            assertThat(membership.getStatus()).isEqualTo(MembershipStatus.EXPIRED);
-            verify(membershipRepository).save(membership);
-        }
-
-        @Test
-        @DisplayName("should throw exception when removing primary tenant membership")
-        void shouldThrowExceptionWhenRemovingPrimaryTenant() {
-            // given
-            UUID principalId = UUID.randomUUID();
-            UUID primaryTenantId = UUID.randomUUID();
-            HumanPrincipalEntity principal = createHumanPrincipal(principalId);
-            principal.setPrimaryTenantId(primaryTenantId);
-
-            RemoveTenantMembershipCommand command = new RemoveTenantMembershipCommand(
-                    principalId, primaryTenantId
-            );
-
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
-
-            // when / then
-            assertThatThrownBy(() -> principalService.removeTenantMembership(command))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("primary tenant");
         }
     }
 
@@ -678,7 +517,7 @@ class PrincipalServiceTest {
                     principalId, "v2.0.0", Map.of("location", "New location")
             );
 
-            when(devicePrincipalRepository.findById(principalId)).thenReturn(Optional.of(device));
+            when(devicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(device));
             when(devicePrincipalRepository.save(any())).thenReturn(device);
 
             // when
@@ -686,7 +525,7 @@ class PrincipalServiceTest {
 
             // then
             assertThat(result).isNotNull();
-            assertThat(result.principalId()).isEqualTo(principalId);
+            assertThat(result.id()).isEqualTo(principalId);
             assertThat(result.lastHeartbeatAt()).isNotNull();
             assertThat(device.getFirmwareVersion()).isEqualTo("v2.0.0");
             assertThat(device.getLocationInfo()).containsEntry("location", "New location");
@@ -699,7 +538,7 @@ class PrincipalServiceTest {
             UUID principalId = UUID.randomUUID();
             UpdateHeartbeatCommand command = new UpdateHeartbeatCommand(principalId, null, null);
 
-            when(devicePrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
+            when(devicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.empty());
 
             // when / then
             assertThatThrownBy(() -> principalService.updateHeartbeat(command))
@@ -723,7 +562,7 @@ class PrincipalServiceTest {
                     principalId, Map.of("tag1", "value1", "tag2", "value2")
             );
 
-            when(humanPrincipalRepository.findById(principalId)).thenReturn(Optional.of(principal));
+            when(humanPrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(principal));
             when(humanPrincipalRepository.save(any())).thenReturn(principal);
 
             // when
@@ -731,7 +570,7 @@ class PrincipalServiceTest {
 
             // then
             assertThat(result).isNotNull();
-            assertThat(result.principalId()).isEqualTo(principalId);
+            assertThat(result.id()).isEqualTo(principalId);
             assertThat(principal.getContextTags()).containsEntry("tag1", "value1").containsEntry("tag2", "value2");
         }
     }
@@ -740,36 +579,33 @@ class PrincipalServiceTest {
 
     private HumanPrincipalEntity createHumanPrincipal(UUID principalId) {
         HumanPrincipalEntity entity = new HumanPrincipalEntity();
-        entity.setPrincipalId(principalId);
+        entity.setBusinessId(PrincipalId.of(principalId));
         entity.setUsername("testuser");
         entity.setEmail("test@example.com");
         entity.setFirstName("Test");
         entity.setLastName("User");
         entity.setDisplayName("Test User");
         entity.setStatus(PrincipalStatus.ACTIVE);
-        entity.setPrimaryTenantId(UUID.randomUUID());
         return entity;
     }
 
     private ServicePrincipalEntity createServicePrincipal(UUID principalId) {
         ServicePrincipalEntity entity = new ServicePrincipalEntity();
-        entity.setPrincipalId(principalId);
+        entity.setBusinessId(PrincipalId.of(principalId));
         entity.setUsername("testservice");
         entity.setServiceName("TestService");
         entity.setStatus(PrincipalStatus.ACTIVE);
-        entity.setPrimaryTenantId(UUID.randomUUID());
         entity.setCredentialRotationDate(LocalDate.now().plusDays(90));
         return entity;
     }
 
     private DevicePrincipalEntity createDevicePrincipal(UUID principalId) {
         DevicePrincipalEntity entity = new DevicePrincipalEntity();
-        entity.setPrincipalId(principalId);
+        entity.setBusinessId(PrincipalId.of(principalId));
         entity.setUsername("testdevice");
         entity.setDeviceIdentifier("TEST_DEVICE");
         entity.setDeviceType(DeviceType.IOT_SENSOR);
         entity.setStatus(PrincipalStatus.ACTIVE);
-        entity.setPrimaryTenantId(UUID.randomUUID());
         return entity;
     }
 }

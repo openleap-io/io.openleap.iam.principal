@@ -72,8 +72,8 @@ public class SearchPrincipalsResponseDto {
      */
     public static class PrincipalSearchItem {
 
-        @JsonProperty("principal_id")
-        private String principalId;
+        @JsonProperty("id")
+        private String id;
 
         @JsonProperty("username")
         private String username;
@@ -87,8 +87,8 @@ public class SearchPrincipalsResponseDto {
         @JsonProperty("status")
         private String status;
 
-        @JsonProperty("primary_tenant_id")
-        private String primaryTenantId;
+        @JsonProperty("default_tenant_id")
+        private String defaultTenantId;
 
         @JsonProperty("last_login_at")
         private String lastLoginAt;
@@ -98,12 +98,12 @@ public class SearchPrincipalsResponseDto {
 
         // Getters and Setters
 
-        public String getPrincipalId() {
-            return principalId;
+        public String getId() {
+            return id;
         }
 
-        public void setPrincipalId(String principalId) {
-            this.principalId = principalId;
+        public void setId(String id) {
+            this.id = id;
         }
 
         public String getUsername() {
@@ -138,12 +138,12 @@ public class SearchPrincipalsResponseDto {
             this.status = status;
         }
 
-        public String getPrimaryTenantId() {
-            return primaryTenantId;
+        public String getDefaultTenantId() {
+            return defaultTenantId;
         }
 
-        public void setPrimaryTenantId(String primaryTenantId) {
-            this.primaryTenantId = primaryTenantId;
+        public void setDefaultTenantId(String defaultTenantId) {
+            this.defaultTenantId = defaultTenantId;
         }
 
         public String getLastLoginAt() {

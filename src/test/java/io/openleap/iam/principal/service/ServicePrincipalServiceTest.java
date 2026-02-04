@@ -4,16 +4,18 @@ import io.openleap.iam.principal.domain.dto.CreateServicePrincipalCommand;
 import io.openleap.iam.principal.domain.dto.CredentialsRotated;
 import io.openleap.iam.principal.domain.dto.RotateCredentialsCommand;
 import io.openleap.iam.principal.domain.dto.ServicePrincipalCreated;
+import io.openleap.iam.principal.domain.entity.PrincipalId;
 import io.openleap.iam.principal.domain.entity.PrincipalStatus;
 import io.openleap.iam.principal.domain.entity.ServicePrincipalEntity;
 import io.openleap.iam.principal.domain.entity.SyncStatus;
+import io.openleap.iam.principal.domain.event.CredentialsRotatedEvent;
+import io.openleap.iam.principal.domain.event.ServicePrincipalCreatedEvent;
+import io.openleap.iam.principal.domain.mapper.ServicePrincipalMapper;
 import io.openleap.iam.principal.exception.ServiceNameAlreadyExistsException;
-import io.openleap.iam.principal.exception.TenantNotFoundException;
 import io.openleap.iam.principal.exception.UsernameAlreadyExistsException;
-import io.openleap.iam.principal.repository.PrincipalTenantMembershipRepository;
 import io.openleap.iam.principal.repository.ServicePrincipalRepository;
 import io.openleap.iam.principal.service.keycloak.KeycloakService;
-import io.openleap.starter.core.messaging.event.EventPublisher;
+import io.openleap.common.messaging.event.EventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,12 +46,6 @@ class ServicePrincipalServiceTest {
     private ServicePrincipalRepository servicePrincipalRepository;
 
     @Mock
-    private PrincipalTenantMembershipRepository membershipRepository;
-
-    @Mock
-    private TenantService tenantService;
-
-    @Mock
     private KeycloakService keycloakService;
 
     @Mock
@@ -58,17 +54,19 @@ class ServicePrincipalServiceTest {
     @Mock
     private EventPublisher eventPublisher;
 
+    @Mock
+    private ServicePrincipalMapper servicePrincipalMapper;
+
     private ServicePrincipalService servicePrincipalService;
 
     @BeforeEach
     void setUp() {
         servicePrincipalService = new ServicePrincipalService(
                 servicePrincipalRepository,
-                membershipRepository,
-                tenantService,
                 keycloakService,
                 credentialService,
-                eventPublisher
+                eventPublisher,
+                servicePrincipalMapper
         );
     }
 
@@ -90,7 +88,6 @@ class ServicePrincipalServiceTest {
 
             when(servicePrincipalRepository.existsByServiceName("PaymentService")).thenReturn(false);
             when(servicePrincipalRepository.existsByUsername("paymentservice")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
             when(credentialService.generateApiKey()).thenReturn("sk_live_testApiKey123");
             when(credentialService.hashApiKey("sk_live_testApiKey123")).thenReturn("hashedApiKey");
             when(keycloakService.createClient(anyString(), anyList())).thenReturn("keycloak-client-secret");
@@ -98,12 +95,27 @@ class ServicePrincipalServiceTest {
             ServicePrincipalEntity savedEntity = createServicePrincipalEntity("paymentservice", "PaymentService");
             when(servicePrincipalRepository.save(any(ServicePrincipalEntity.class))).thenReturn(savedEntity);
 
+            ServicePrincipalCreatedEvent mockEvent = new ServicePrincipalCreatedEvent(
+                    savedEntity.getBusinessId().value(), "SERVICE", "paymentservice", "PaymentService",
+                    tenantId, "ACTIVE", List.of("payments.read", "payments.write"),
+                    LocalDate.now().plusDays(90), null
+            );
+            when(servicePrincipalMapper.toServicePrincipalCreatedEvent(any())).thenReturn(mockEvent);
+
+            ServicePrincipalCreated expectedResult = new ServicePrincipalCreated(
+                    savedEntity.getBusinessId().value(), "paymentservice", "PaymentService",
+                    "sk_live_testApiKey123", "PaymentService", "keycloak-client-secret",
+                    List.of("payments.read", "payments.write"), LocalDate.now().plusDays(90)
+            );
+            when(servicePrincipalMapper.toServicePrincipalCreated(any(), anyString(), anyString(), anyString()))
+                    .thenReturn(expectedResult);
+
             // when
             ServicePrincipalCreated result = servicePrincipalService.createServicePrincipal(command);
 
             // then
             assertThat(result).isNotNull();
-            assertThat(result.principalId()).isEqualTo(savedEntity.getPrincipalId());
+            assertThat(result.id()).isEqualTo(savedEntity.getBusinessId().value());
             assertThat(result.username()).isEqualTo("paymentservice");
             assertThat(result.serviceName()).isEqualTo("PaymentService");
             assertThat(result.apiKey()).isEqualTo("sk_live_testApiKey123");
@@ -111,6 +123,8 @@ class ServicePrincipalServiceTest {
             verify(credentialService).generateApiKey();
             verify(credentialService).hashApiKey("sk_live_testApiKey123");
             verify(keycloakService).createClient(eq("PaymentService"), anyList());
+            verify(servicePrincipalMapper).toServicePrincipalCreatedEvent(any());
+            verify(servicePrincipalMapper).toServicePrincipalCreated(any(), eq("sk_live_testApiKey123"), eq("PaymentService"), eq("keycloak-client-secret"));
         }
 
         @Test
@@ -159,28 +173,28 @@ class ServicePrincipalServiceTest {
             verify(servicePrincipalRepository, never()).save(any());
         }
 
-        @Test
-        @DisplayName("should throw TenantNotFoundException when tenant does not exist")
-        void shouldThrowExceptionWhenTenantNotFound() {
-            // given
-            UUID tenantId = UUID.randomUUID();
-            CreateServicePrincipalCommand command = new CreateServicePrincipalCommand(
-                    "NewService",
-                    tenantId,
-                    null,
-                    List.of("read")
-            );
-
-            when(servicePrincipalRepository.existsByServiceName("NewService")).thenReturn(false);
-            when(servicePrincipalRepository.existsByUsername("newservice")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(false);
-
-            // when / then
-            assertThatThrownBy(() -> servicePrincipalService.createServicePrincipal(command))
-                    .isInstanceOf(TenantNotFoundException.class);
-
-            verify(servicePrincipalRepository, never()).save(any());
-        }
+//        @Test
+//        @DisplayName("should throw TenantNotFoundException when tenant does not exist")
+//        void shouldThrowExceptionWhenTenantNotFound() {
+//            // given
+//            UUID tenantId = UUID.randomUUID();
+//            CreateServicePrincipalCommand command = new CreateServicePrincipalCommand(
+//                    "NewService",
+//                    tenantId,
+//                    null,
+//                    List.of("read")
+//            );
+//
+//            when(servicePrincipalRepository.existsByServiceName("NewService")).thenReturn(false);
+//            when(servicePrincipalRepository.existsByUsername("newservice")).thenReturn(false);
+//            when(tenantService.tenantExists(tenantId)).thenReturn(false);
+//
+//            // when / then
+//            assertThatThrownBy(() -> servicePrincipalService.createServicePrincipal(command))
+//                    .isInstanceOf(TenantNotFoundException.class);
+//
+//            verify(servicePrincipalRepository, never()).save(any());
+//        }
 
         @Test
         @DisplayName("should rollback when Keycloak client creation fails")
@@ -196,7 +210,7 @@ class ServicePrincipalServiceTest {
 
             when(servicePrincipalRepository.existsByServiceName("NewService")).thenReturn(false);
             when(servicePrincipalRepository.existsByUsername("newservice")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
+//            when(tenantService.tenantExists(tenantId)).thenReturn(true);
             when(credentialService.generateApiKey()).thenReturn("sk_live_test");
             when(credentialService.hashApiKey(any())).thenReturn("hash");
             when(servicePrincipalRepository.save(any())).thenReturn(createServicePrincipalEntity("newservice", "NewService"));
@@ -222,15 +236,16 @@ class ServicePrincipalServiceTest {
 
             when(servicePrincipalRepository.existsByServiceName("NewService")).thenReturn(false);
             when(servicePrincipalRepository.existsByUsername("newservice")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
             when(credentialService.generateApiKey()).thenReturn("sk_live_test");
             when(credentialService.hashApiKey(any())).thenReturn("hash");
             when(keycloakService.createClient(any(), any())).thenReturn("secret");
+            when(servicePrincipalMapper.toServicePrincipalCreatedEvent(any())).thenReturn(mock(ServicePrincipalCreatedEvent.class));
+            when(servicePrincipalMapper.toServicePrincipalCreated(any(), any(), any(), any())).thenReturn(mock(ServicePrincipalCreated.class));
 
             ArgumentCaptor<ServicePrincipalEntity> captor = ArgumentCaptor.forClass(ServicePrincipalEntity.class);
             when(servicePrincipalRepository.save(captor.capture())).thenAnswer(inv -> {
                 ServicePrincipalEntity entity = inv.getArgument(0);
-                entity.setPrincipalId(UUID.randomUUID());
+                entity.setBusinessId(PrincipalId.of(UUID.randomUUID()));
                 return entity;
             });
 
@@ -256,15 +271,16 @@ class ServicePrincipalServiceTest {
 
             when(servicePrincipalRepository.existsByServiceName("NewService")).thenReturn(false);
             when(servicePrincipalRepository.existsByUsername("newservice")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
             when(credentialService.generateApiKey()).thenReturn("sk_live_test");
             when(credentialService.hashApiKey(any())).thenReturn("hash");
             when(keycloakService.createClient(any(), any())).thenReturn("secret");
+            when(servicePrincipalMapper.toServicePrincipalCreatedEvent(any())).thenReturn(mock(ServicePrincipalCreatedEvent.class));
+            when(servicePrincipalMapper.toServicePrincipalCreated(any(), any(), any(), any())).thenReturn(mock(ServicePrincipalCreated.class));
 
             ArgumentCaptor<ServicePrincipalEntity> captor = ArgumentCaptor.forClass(ServicePrincipalEntity.class);
             when(servicePrincipalRepository.save(captor.capture())).thenAnswer(inv -> {
                 ServicePrincipalEntity entity = inv.getArgument(0);
-                entity.setPrincipalId(UUID.randomUUID());
+                entity.setBusinessId(PrincipalId.of(UUID.randomUUID()));
                 return entity;
             });
 
@@ -291,15 +307,16 @@ class ServicePrincipalServiceTest {
 
             when(servicePrincipalRepository.existsByServiceName("MyServiceName")).thenReturn(false);
             when(servicePrincipalRepository.existsByUsername("myservicename")).thenReturn(false);
-            when(tenantService.tenantExists(tenantId)).thenReturn(true);
             when(credentialService.generateApiKey()).thenReturn("sk_live_test");
             when(credentialService.hashApiKey(any())).thenReturn("hash");
             when(keycloakService.createClient(any(), any())).thenReturn("secret");
+            when(servicePrincipalMapper.toServicePrincipalCreatedEvent(any())).thenReturn(mock(ServicePrincipalCreatedEvent.class));
+            when(servicePrincipalMapper.toServicePrincipalCreated(any(), any(), any(), any())).thenReturn(mock(ServicePrincipalCreated.class));
 
             ArgumentCaptor<ServicePrincipalEntity> captor = ArgumentCaptor.forClass(ServicePrincipalEntity.class);
             when(servicePrincipalRepository.save(captor.capture())).thenAnswer(inv -> {
                 ServicePrincipalEntity entity = inv.getArgument(0);
-                entity.setPrincipalId(UUID.randomUUID());
+                entity.setBusinessId(PrincipalId.of(UUID.randomUUID()));
                 return entity;
             });
 
@@ -327,23 +344,35 @@ class ServicePrincipalServiceTest {
 
             RotateCredentialsCommand command = new RotateCredentialsCommand(principalId, false, "Scheduled rotation");
 
-            when(servicePrincipalRepository.findById(principalId)).thenReturn(Optional.of(existingPrincipal));
+            when(servicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(existingPrincipal));
             when(credentialService.generateApiKey()).thenReturn("sk_live_newApiKey");
             when(credentialService.hashApiKey("sk_live_newApiKey")).thenReturn("newHash");
             when(keycloakService.regenerateClientSecret("keycloak-client-id")).thenReturn("new-keycloak-secret");
             when(servicePrincipalRepository.save(any())).thenReturn(existingPrincipal);
+
+            when(servicePrincipalMapper.toCredentialsRotatedEvent(any(), any(), any(), any()))
+                    .thenReturn(mock(CredentialsRotatedEvent.class));
+
+            LocalDate expectedRotationDate = LocalDate.now().plusDays(90);
+            CredentialsRotated expectedResult = new CredentialsRotated(
+                    principalId, "sk_live_newApiKey", "new-keycloak-secret", expectedRotationDate, java.time.Instant.now()
+            );
+            when(servicePrincipalMapper.toCredentialsRotated(any(), eq("sk_live_newApiKey"), eq("new-keycloak-secret"), any(), any()))
+                    .thenReturn(expectedResult);
 
             // when
             CredentialsRotated result = servicePrincipalService.rotateCredentials(command);
 
             // then
             assertThat(result).isNotNull();
-            assertThat(result.principalId()).isEqualTo(principalId);
+            assertThat(result.id()).isEqualTo(principalId);
             assertThat(result.apiKey()).isEqualTo("sk_live_newApiKey");
             assertThat(result.keycloakClientSecret()).isEqualTo("new-keycloak-secret");
-            assertThat(result.credentialRotationDate()).isEqualTo(LocalDate.now().plusDays(90));
+            assertThat(result.credentialRotationDate()).isEqualTo(expectedRotationDate);
             verify(credentialService).generateApiKey();
             verify(keycloakService).regenerateClientSecret("keycloak-client-id");
+            verify(servicePrincipalMapper).toCredentialsRotatedEvent(any(), eq(command), any(), any());
+            verify(servicePrincipalMapper).toCredentialsRotated(any(), eq("sk_live_newApiKey"), eq("new-keycloak-secret"), any(), any());
         }
 
         @Test
@@ -357,11 +386,20 @@ class ServicePrincipalServiceTest {
 
             RotateCredentialsCommand command = new RotateCredentialsCommand(principalId, true, "Security incident");
 
-            when(servicePrincipalRepository.findById(principalId)).thenReturn(Optional.of(existingPrincipal));
+            when(servicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(existingPrincipal));
             when(credentialService.generateApiKey()).thenReturn("sk_live_newApiKey");
             when(credentialService.hashApiKey("sk_live_newApiKey")).thenReturn("newHash");
             when(keycloakService.regenerateClientSecret("keycloak-client-id")).thenReturn("new-keycloak-secret");
             when(servicePrincipalRepository.save(any())).thenReturn(existingPrincipal);
+
+            when(servicePrincipalMapper.toCredentialsRotatedEvent(any(), any(), any(), any()))
+                    .thenReturn(mock(CredentialsRotatedEvent.class));
+
+            CredentialsRotated expectedResult = new CredentialsRotated(
+                    principalId, "sk_live_newApiKey", "new-keycloak-secret", LocalDate.now().plusDays(90), java.time.Instant.now()
+            );
+            when(servicePrincipalMapper.toCredentialsRotated(any(), any(), any(), any(), any()))
+                    .thenReturn(expectedResult);
 
             // when
             CredentialsRotated result = servicePrincipalService.rotateCredentials(command);
@@ -378,7 +416,7 @@ class ServicePrincipalServiceTest {
             UUID principalId = UUID.randomUUID();
             RotateCredentialsCommand command = new RotateCredentialsCommand(principalId, false, "Test");
 
-            when(servicePrincipalRepository.findById(principalId)).thenReturn(Optional.empty());
+            when(servicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.empty());
 
             // when / then
             assertThatThrownBy(() -> servicePrincipalService.rotateCredentials(command))
@@ -396,7 +434,7 @@ class ServicePrincipalServiceTest {
 
             RotateCredentialsCommand command = new RotateCredentialsCommand(principalId, false, "Test");
 
-            when(servicePrincipalRepository.findById(principalId)).thenReturn(Optional.of(inactivePrincipal));
+            when(servicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(inactivePrincipal));
 
             // when / then
             assertThatThrownBy(() -> servicePrincipalService.rotateCredentials(command))
@@ -414,7 +452,7 @@ class ServicePrincipalServiceTest {
 
             RotateCredentialsCommand command = new RotateCredentialsCommand(principalId, false, "Test");
 
-            when(servicePrincipalRepository.findById(principalId)).thenReturn(Optional.of(existingPrincipal));
+            when(servicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(existingPrincipal));
 
             // when / then
             assertThatThrownBy(() -> servicePrincipalService.rotateCredentials(command))
@@ -433,7 +471,7 @@ class ServicePrincipalServiceTest {
 
             RotateCredentialsCommand command = new RotateCredentialsCommand(principalId, false, "Test");
 
-            when(servicePrincipalRepository.findById(principalId)).thenReturn(Optional.of(existingPrincipal));
+            when(servicePrincipalRepository.findByBusinessId(PrincipalId.of(principalId))).thenReturn(Optional.of(existingPrincipal));
             when(credentialService.generateApiKey()).thenReturn("sk_live_newApiKey");
             when(credentialService.hashApiKey(any())).thenReturn("hash");
             when(servicePrincipalRepository.save(any())).thenReturn(existingPrincipal);
@@ -450,24 +488,22 @@ class ServicePrincipalServiceTest {
 
     private ServicePrincipalEntity createServicePrincipalEntity(String username, String serviceName) {
         ServicePrincipalEntity entity = new ServicePrincipalEntity();
-        entity.setPrincipalId(UUID.randomUUID());
+        entity.setBusinessId(PrincipalId.of(UUID.randomUUID()));
         entity.setUsername(username);
         entity.setServiceName(serviceName);
         entity.setStatus(PrincipalStatus.ACTIVE);
         entity.setSyncStatus(SyncStatus.PENDING);
-        entity.setPrimaryTenantId(UUID.randomUUID());
         entity.setCredentialRotationDate(LocalDate.now().plusDays(90));
         return entity;
     }
 
     private ServicePrincipalEntity createActiveServicePrincipal(UUID principalId) {
         ServicePrincipalEntity entity = new ServicePrincipalEntity();
-        entity.setPrincipalId(principalId);
+        entity.setBusinessId(PrincipalId.of(principalId));
         entity.setUsername("testservice");
         entity.setServiceName("TestService");
         entity.setStatus(PrincipalStatus.ACTIVE);
         entity.setSyncStatus(SyncStatus.SYNCED);
-        entity.setPrimaryTenantId(UUID.randomUUID());
         entity.setApiKeyHash("existingHash");
         entity.setCredentialRotationDate(LocalDate.now().plusDays(90));
         return entity;

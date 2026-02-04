@@ -63,7 +63,7 @@ class SystemPrincipalControllerIT {
             CreateSystemPrincipalRequestDto request = new CreateSystemPrincipalRequestDto();
             request.setSystemIdentifier("ERP_SYSTEM_001");
             request.setIntegrationType(IntegrationType.ERP);
-            request.setPrimaryTenantId(tenantId);
+            request.setDefaultTenantId(tenantId);
             request.setCertificateThumbprint("SHA256:abc123def456");
             request.setAllowedOperations(List.of("inventory.read", "orders.write"));
 
@@ -78,7 +78,7 @@ class SystemPrincipalControllerIT {
             );
 
             CreateSystemPrincipalResponseDto responseDto = new CreateSystemPrincipalResponseDto();
-            responseDto.setPrincipalId(principalId);
+            responseDto.setId(principalId);
             responseDto.setUsername("erp_system_001");
             responseDto.setStatus("ACTIVE");
 
@@ -105,7 +105,7 @@ class SystemPrincipalControllerIT {
             CreateSystemPrincipalRequestDto request = new CreateSystemPrincipalRequestDto();
             request.setSystemIdentifier("EXISTING_SYSTEM");
             request.setIntegrationType(IntegrationType.ERP);
-            request.setPrimaryTenantId(UUID.randomUUID());
+            request.setDefaultTenantId(UUID.randomUUID());
             request.setCertificateThumbprint("SHA256:abc123");
 
             when(principalMapper.toCommand(any(CreateSystemPrincipalRequestDto.class))).thenReturn(mock(CreateSystemPrincipalCommand.class));
@@ -130,7 +130,7 @@ class SystemPrincipalControllerIT {
             CreateSystemPrincipalRequestDto request = new CreateSystemPrincipalRequestDto();
             request.setSystemIdentifier("NEW_SYSTEM");
             request.setIntegrationType(IntegrationType.ERP);
-            request.setPrimaryTenantId(tenantId);
+            request.setDefaultTenantId(tenantId);
             request.setCertificateThumbprint("SHA256:abc123");
 
             when(principalMapper.toCommand(any(CreateSystemPrincipalRequestDto.class))).thenReturn(mock(CreateSystemPrincipalCommand.class));
@@ -154,7 +154,7 @@ class SystemPrincipalControllerIT {
             CreateSystemPrincipalRequestDto request = new CreateSystemPrincipalRequestDto();
             request.setSystemIdentifier("NEW_SYSTEM");
             request.setIntegrationType(IntegrationType.ERP);
-            request.setPrimaryTenantId(UUID.randomUUID());
+            request.setDefaultTenantId(UUID.randomUUID());
             request.setCertificateThumbprint(null); // missing
 
             when(principalMapper.toCommand(any(CreateSystemPrincipalRequestDto.class))).thenReturn(mock(CreateSystemPrincipalCommand.class));

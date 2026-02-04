@@ -10,7 +10,7 @@ public record AddTenantMembershipCommand(
     /**
      * Principal ID to add membership for
      */
-    UUID principalId,
+    UUID id,
 
     /**
      * Tenant ID to add membership for

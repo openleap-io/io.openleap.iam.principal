@@ -217,14 +217,14 @@ class HumanPrincipalRepositoryIT {
             // given
             HumanPrincipalEntity principal = createPrincipal("user", "user@example.com");
             entityManager.persistAndFlush(principal);
-            UUID principalId = principal.getPrincipalId();
+            UUID principalId = principal.getBusinessId().value();
 
             // when
-            Optional<HumanPrincipalEntity> result = humanPrincipalRepository.findByPrincipalId(principalId);
+            Optional<HumanPrincipalEntity> result = humanPrincipalRepository.findByBusinessId(principalId);
 
             // then
             assertThat(result).isPresent();
-            assertThat(result.get().getPrincipalId()).isEqualTo(principalId);
+            assertThat(result.get().getBusinessId()).isEqualTo(principalId);
         }
 
         @Test
@@ -234,7 +234,7 @@ class HumanPrincipalRepositoryIT {
             UUID nonExistentId = UUID.randomUUID();
 
             // when
-            Optional<HumanPrincipalEntity> result = humanPrincipalRepository.findByPrincipalId(nonExistentId);
+            Optional<HumanPrincipalEntity> result = humanPrincipalRepository.findByBusinessId(nonExistentId);
 
             // then
             assertThat(result).isEmpty();
@@ -304,29 +304,6 @@ class HumanPrincipalRepositoryIT {
             assertThat(result.getContent().get(0).getStatus()).isEqualTo(PrincipalStatus.ACTIVE);
         }
 
-        @Test
-        @DisplayName("should filter principals by tenant ID")
-        void shouldFilterByTenantId() {
-            // given
-            UUID tenant1 = UUID.randomUUID();
-            UUID tenant2 = UUID.randomUUID();
-
-            HumanPrincipalEntity principal1 = createPrincipal("user1", "user1@example.com");
-            principal1.setPrimaryTenantId(tenant1);
-            entityManager.persistAndFlush(principal1);
-
-            HumanPrincipalEntity principal2 = createPrincipal("user2", "user2@example.com");
-            principal2.setPrimaryTenantId(tenant2);
-            entityManager.persistAndFlush(principal2);
-
-            // when
-            Page<HumanPrincipalEntity> result = humanPrincipalRepository.searchPrincipals(
-                    null, null, tenant1, PageRequest.of(0, 10));
-
-            // then
-            assertThat(result.getTotalElements()).isEqualTo(1);
-            assertThat(result.getContent().get(0).getPrimaryTenantId()).isEqualTo(tenant1);
-        }
 
         @Test
         @DisplayName("should return all principals when no filters")
@@ -399,7 +376,6 @@ class HumanPrincipalRepositoryIT {
         entity.setDisplayName("Test User");
         entity.setStatus(PrincipalStatus.PENDING);
         entity.setSyncStatus(SyncStatus.PENDING);
-        entity.setPrimaryTenantId(tenantId);
         return entity;
     }
 }

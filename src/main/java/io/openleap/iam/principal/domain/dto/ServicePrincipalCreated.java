@@ -12,7 +12,7 @@ import java.util.UUID;
  * returned only once during creation.
  */
 public record ServicePrincipalCreated(
-    UUID principalId,
+    UUID id,
     String username,
     String serviceName,
     String apiKey,

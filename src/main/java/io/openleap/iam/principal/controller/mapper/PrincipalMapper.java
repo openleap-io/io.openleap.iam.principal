@@ -13,6 +13,7 @@ import io.openleap.iam.principal.controller.dto.GetCredentialStatusResponseDto;
 import io.openleap.iam.principal.controller.dto.GetPrincipalResponseDto;
 import io.openleap.iam.principal.controller.dto.GetProfileResponseDto;
 import io.openleap.iam.principal.controller.dto.ListTenantMembershipsResponseDto;
+import io.openleap.iam.principal.controller.dto.SearchPrincipalsResponseDto;
 import io.openleap.iam.principal.controller.dto.UpdateHeartbeatRequestDto;
 import io.openleap.iam.principal.controller.dto.UpdateHeartbeatResponseDto;
 import io.openleap.iam.principal.controller.dto.RotateCredentialsRequestDto;
@@ -58,12 +59,18 @@ import io.openleap.iam.principal.domain.dto.PrincipalDetails;
 import io.openleap.iam.principal.domain.dto.PrincipalSuspended;
 import io.openleap.iam.principal.domain.dto.ProfileUpdated;
 import io.openleap.iam.principal.domain.dto.RotateCredentialsCommand;
+import io.openleap.iam.principal.domain.dto.SearchPrincipalsQuery;
+import io.openleap.iam.principal.domain.dto.SearchPrincipalsResult;
 import io.openleap.iam.principal.domain.dto.ServicePrincipalCreated;
 import io.openleap.iam.principal.domain.dto.SuspendPrincipalCommand;
 import io.openleap.iam.principal.domain.dto.SystemPrincipalCreated;
 import io.openleap.iam.principal.domain.dto.UpdateProfileCommand;
 import io.openleap.iam.principal.domain.entity.HumanPrincipalEntity;
 import io.openleap.iam.principal.domain.entity.Principal;
+import io.openleap.iam.principal.domain.entity.PrincipalStatus;
+import io.openleap.iam.principal.domain.entity.PrincipalType;
+
+import java.util.UUID;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -95,7 +102,7 @@ public interface PrincipalMapper {
      */
     default CreateServicePrincipalResponseDto toResponseDto(ServicePrincipalCreated created) {
         CreateServicePrincipalResponseDto dto = new CreateServicePrincipalResponseDto();
-        dto.setPrincipalId(created.principalId());
+        dto.setId(created.id());
         dto.setPrincipalType("SERVICE");
         dto.setUsername(created.username());
         dto.setStatus("ACTIVE");
@@ -127,7 +134,7 @@ public interface PrincipalMapper {
      */
     default CreateSystemPrincipalResponseDto toResponseDto(SystemPrincipalCreated created) {
         CreateSystemPrincipalResponseDto dto = new CreateSystemPrincipalResponseDto();
-        dto.setPrincipalId(created.principalId());
+        dto.setId(created.id());
         dto.setPrincipalType("SYSTEM");
         dto.setUsername(created.username());
         dto.setStatus("ACTIVE");
@@ -156,7 +163,7 @@ public interface PrincipalMapper {
      */
     default CreateDevicePrincipalResponseDto toResponseDto(DevicePrincipalCreated created) {
         CreateDevicePrincipalResponseDto dto = new CreateDevicePrincipalResponseDto();
-        dto.setPrincipalId(created.principalId());
+        dto.setId(created.id());
         dto.setPrincipalType("DEVICE");
         dto.setUsername(created.username());
         dto.setStatus("ACTIVE");
@@ -176,7 +183,7 @@ public interface PrincipalMapper {
     
     /**
      * Maps controller request DTO to service domain command for profile update.
-     * Note: This requires custom implementation due to principalId parameter.
+     * Note: This requires custom implementation due to id parameter.
      */
     default UpdateProfileCommand toCommand(UpdateProfileRequestDto dto, java.util.UUID principalId) {
         return new UpdateProfileCommand(
@@ -198,9 +205,9 @@ public interface PrincipalMapper {
     /**
      * Maps service domain result and entity to controller response DTO for profile update.
      */
-    default UpdateProfileResponseDto toResponseDto(ProfileUpdated updated, HumanPrincipalEntity principal) {
+    default UpdateProfileResponseDto toResponseDto(HumanPrincipalEntity principal) {
         UpdateProfileResponseDto dto = new UpdateProfileResponseDto();
-        dto.setPrincipalId(principal.getPrincipalId().toString());
+        dto.setId(principal.getBusinessId().toString());
         dto.setFirstName(principal.getFirstName());
         dto.setLastName(principal.getLastName());
         dto.setDisplayName(principal.getDisplayName());
@@ -218,7 +225,7 @@ public interface PrincipalMapper {
     
     /**
      * Maps controller request DTO to service domain command for principal activation.
-     * Note: This requires custom implementation due to principalId parameter.
+     * Note: This requires custom implementation due to id parameter.
      */
     default ActivatePrincipalCommand toCommand(ActivatePrincipalRequestDto dto, java.util.UUID principalId) {
         return new ActivatePrincipalCommand(
@@ -234,14 +241,14 @@ public interface PrincipalMapper {
      */
     default ActivatePrincipalResponseDto toResponseDto(PrincipalActivated activated) {
         ActivatePrincipalResponseDto dto = new ActivatePrincipalResponseDto();
-        dto.setPrincipalId(activated.principalId().toString());
+        dto.setId(activated.id().toString());
         dto.setStatus("ACTIVE");
         return dto;
     }
     
     /**
      * Maps controller request DTO to service domain command for principal suspension.
-     * Note: This requires custom implementation due to principalId parameter.
+     * Note: This requires custom implementation due to id parameter.
      */
     default SuspendPrincipalCommand toCommand(SuspendPrincipalRequestDto dto, java.util.UUID principalId) {
         return new SuspendPrincipalCommand(
@@ -256,14 +263,14 @@ public interface PrincipalMapper {
      */
     default SuspendPrincipalResponseDto toResponseDto(PrincipalSuspended suspended) {
         SuspendPrincipalResponseDto dto = new SuspendPrincipalResponseDto();
-        dto.setPrincipalId(suspended.principalId().toString());
+        dto.setId(suspended.id().toString());
         dto.setStatus("SUSPENDED");
         return dto;
     }
 
     /**
      * Maps controller request DTO to service domain command for principal deactivation.
-     * Note: This requires custom implementation due to principalId parameter.
+     * Note: This requires custom implementation due to id parameter.
      */
     default DeactivatePrincipalCommand toCommand(DeactivatePrincipalRequestDto dto, java.util.UUID principalId) {
         return new DeactivatePrincipalCommand(
@@ -278,14 +285,14 @@ public interface PrincipalMapper {
      */
     default DeactivatePrincipalResponseDto toResponseDto(PrincipalDeactivated deactivated) {
         DeactivatePrincipalResponseDto dto = new DeactivatePrincipalResponseDto();
-        dto.setPrincipalId(deactivated.principalId().toString());
+        dto.setId(deactivated.id().toString());
         dto.setStatus("INACTIVE");
         return dto;
     }
 
     /**
      * Maps controller request DTO to service domain command for GDPR deletion.
-     * Note: This requires custom implementation due to principalId parameter.
+     * Note: This requires custom implementation due to id parameter.
      */
     default DeletePrincipalGdprCommand toCommand(DeletePrincipalGdprRequestDto dto, java.util.UUID principalId) {
         return new DeletePrincipalGdprCommand(
@@ -301,7 +308,7 @@ public interface PrincipalMapper {
      */
     default DeletePrincipalGdprResponseDto toResponseDto(PrincipalDeleted deleted) {
         DeletePrincipalGdprResponseDto dto = new DeletePrincipalGdprResponseDto();
-        dto.setPrincipalId(deleted.principalId().toString());
+        dto.setId(deleted.id().toString());
         dto.setStatus("DELETED");
         dto.setAnonymized(deleted.anonymized());
         dto.setAuditReference(deleted.auditReference());
@@ -311,7 +318,7 @@ public interface PrincipalMapper {
 
     /**
      * Maps controller request DTO to service domain command for credentials rotation.
-     * Note: This requires custom implementation due to principalId parameter.
+     * Note: This requires custom implementation due to id parameter.
      */
     default RotateCredentialsCommand toCommand(RotateCredentialsRequestDto dto, java.util.UUID principalId) {
         return new RotateCredentialsCommand(
@@ -326,7 +333,7 @@ public interface PrincipalMapper {
      */
     default RotateCredentialsResponseDto toResponseDto(CredentialsRotated rotated) {
         RotateCredentialsResponseDto dto = new RotateCredentialsResponseDto();
-        dto.setPrincipalId(rotated.principalId().toString());
+        dto.setId(rotated.id().toString());
         dto.setApiKey(rotated.apiKey());
         dto.setKeycloakClientSecret(rotated.keycloakClientSecret());
         dto.setCredentialRotationDate(rotated.credentialRotationDate().toString());
@@ -340,12 +347,12 @@ public interface PrincipalMapper {
      */
     default GetPrincipalResponseDto toResponseDto(PrincipalDetails details) {
         GetPrincipalResponseDto dto = new GetPrincipalResponseDto();
-        dto.setPrincipalId(details.principalId().toString());
+        dto.setId(details.id().toString());
         dto.setPrincipalType(details.principalType());
         dto.setUsername(details.username());
         dto.setEmail(details.email());
         dto.setStatus(details.status());
-        dto.setPrimaryTenantId(details.primaryTenantId() != null ? details.primaryTenantId().toString() : null);
+//        dto.setPrimaryTenantId(details.defaultTenantId() != null ? details.defaultTenantId().toString() : null);
         dto.setCreatedAt(details.createdAt() != null ? details.createdAt().toString() : null);
         dto.setUpdatedAt(details.updatedAt() != null ? details.updatedAt().toString() : null);
         dto.setContextTags(details.contextTags());
@@ -379,7 +386,7 @@ public interface PrincipalMapper {
 
     /**
      * Maps controller request DTO to service domain command for common attributes update.
-     * Note: This requires custom implementation due to principalId parameter.
+     * Note: This requires custom implementation due to id parameter.
      */
     default UpdateCommonAttributesCommand toCommand(UpdateCommonAttributesRequestDto dto, java.util.UUID principalId) {
         return new UpdateCommonAttributesCommand(
@@ -393,7 +400,7 @@ public interface PrincipalMapper {
      */
     default UpdateCommonAttributesResponseDto toResponseDto(CommonAttributesUpdated updated, Principal principal) {
         UpdateCommonAttributesResponseDto dto = new UpdateCommonAttributesResponseDto();
-        dto.setPrincipalId(principal.getPrincipalId().toString());
+        dto.setId(principal.getBusinessId().toString());
         dto.setContextTags(principal.getContextTags());
         dto.setUpdatedAt(principal.getUpdatedAt() != null ? principal.getUpdatedAt().toString() : null);
         return dto;
@@ -404,7 +411,7 @@ public interface PrincipalMapper {
      */
     default GetProfileResponseDto toResponseDto(ProfileDetails details) {
         GetProfileResponseDto dto = new GetProfileResponseDto();
-        dto.setPrincipalId(details.principalId().toString());
+        dto.setId(details.id().toString());
         dto.setFirstName(details.firstName());
         dto.setLastName(details.lastName());
         dto.setDisplayName(details.displayName());
@@ -423,7 +430,7 @@ public interface PrincipalMapper {
      */
     default GetCredentialStatusResponseDto toResponseDto(CredentialStatus status) {
         GetCredentialStatusResponseDto dto = new GetCredentialStatusResponseDto();
-        dto.setPrincipalId(status.principalId().toString());
+        dto.setId(status.id().toString());
         dto.setPrincipalType(status.principalType());
         dto.setCredentialRotationDate(status.credentialRotationDate() != null ? status.credentialRotationDate().toString() : null);
         dto.setDaysUntilRotation(status.daysUntilRotation());
@@ -448,11 +455,9 @@ public interface PrincipalMapper {
                     var itemDto = new ListTenantMembershipsResponseDto.TenantMembershipItemDto();
                     itemDto.setId(item.id().toString());
                     itemDto.setPrincipalId(item.principalId().toString());
-                    itemDto.setTenantId(item.tenantId().toString());
                     itemDto.setValidFrom(item.validFrom() != null ? item.validFrom().toString() : null);
                     itemDto.setValidTo(item.validTo() != null ? item.validTo().toString() : null);
                     itemDto.setStatus(item.status());
-                    itemDto.setIsPrimary(item.isPrimary());
                     return itemDto;
                 })
                 .toList();
@@ -514,7 +519,7 @@ public interface PrincipalMapper {
      */
     default UpdateHeartbeatResponseDto toResponseDto(HeartbeatUpdated updated) {
         UpdateHeartbeatResponseDto dto = new UpdateHeartbeatResponseDto();
-        dto.setPrincipalId(updated.principalId().toString());
+        dto.setId(updated.id().toString());
         dto.setLastHeartbeatAt(updated.lastHeartbeatAt() != null ? updated.lastHeartbeatAt().toString() : null);
         return dto;
     }
@@ -531,12 +536,65 @@ public interface PrincipalMapper {
         var items = result.items().stream()
                 .map(item -> {
                     var itemDto = new CrossTenantSearchResponseDto.CrossTenantPrincipalItemDto();
-                    itemDto.setPrincipalId(item.principalId().toString());
+                    itemDto.setPrincipalId(item.id().toString());
                     itemDto.setPrincipalType(item.principalType());
                     itemDto.setUsername(item.username());
                     itemDto.setEmail(item.email());
                     itemDto.setStatus(item.status());
-                    itemDto.setPrimaryTenantId(item.primaryTenantId() != null ? item.primaryTenantId().toString() : null);
+                    itemDto.setPrimaryTenantId(item.defaultTenantId() != null ? item.defaultTenantId().toString() : null);
+                    return itemDto;
+                })
+                .toList();
+        dto.setItems(items);
+
+        return dto;
+    }
+
+    /**
+     * Maps request parameters to search principals query.
+     */
+    default SearchPrincipalsQuery toQuery(String search, String principalType, String status, UUID tenantId, int page, int size) {
+        PrincipalType parsedPrincipalType = null;
+        if (principalType != null && !principalType.isBlank()) {
+            try {
+                parsedPrincipalType = PrincipalType.valueOf(principalType.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // Invalid principal type, leave as null
+            }
+        }
+
+        PrincipalStatus parsedStatus = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                parsedStatus = PrincipalStatus.valueOf(status.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // Invalid status, leave as null
+            }
+        }
+
+        return new SearchPrincipalsQuery(search, parsedPrincipalType, parsedStatus, tenantId, page, size);
+    }
+
+    /**
+     * Maps search principals result to response DTO.
+     */
+    default SearchPrincipalsResponseDto toResponseDto(SearchPrincipalsResult result) {
+        SearchPrincipalsResponseDto dto = new SearchPrincipalsResponseDto();
+        dto.setTotal(result.total());
+        dto.setPage(result.page());
+        dto.setSize(result.size());
+
+        var items = result.items().stream()
+                .map(item -> {
+                    var itemDto = new SearchPrincipalsResponseDto.PrincipalSearchItem();
+                    itemDto.setId(item.principalId().toString());
+                    itemDto.setUsername(item.username());
+                    itemDto.setEmail(item.email());
+                    itemDto.setPrincipalType(item.principalType());
+                    itemDto.setStatus(item.status());
+                    itemDto.setDefaultTenantId(item.primaryTenantId() != null ? item.primaryTenantId().toString() : null);
+                    itemDto.setLastLoginAt(item.lastLoginAt() != null ? item.lastLoginAt().toString() : null);
+                    itemDto.setCreatedAt(item.createdAt() != null ? item.createdAt().toString() : null);
                     return itemDto;
                 })
                 .toList();

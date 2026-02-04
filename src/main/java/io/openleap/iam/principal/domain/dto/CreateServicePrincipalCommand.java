@@ -10,7 +10,7 @@ import java.util.UUID;
  */
 public record CreateServicePrincipalCommand(
     String serviceName,
-    UUID primaryTenantId,
+    UUID defaultTenantId,
     Map<String, Object> contextTags,
     List<String> allowedScopes
 ) {

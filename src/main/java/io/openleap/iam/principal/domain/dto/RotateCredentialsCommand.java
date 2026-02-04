@@ -9,7 +9,7 @@ public record RotateCredentialsCommand(
     /**
      * Principal ID
      */
-    UUID principalId,
+    UUID id,
 
     /**
      * Force rotation even if not due

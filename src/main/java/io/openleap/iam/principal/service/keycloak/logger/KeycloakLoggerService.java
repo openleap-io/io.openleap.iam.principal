@@ -1,8 +1,10 @@
 package io.openleap.iam.principal.service.keycloak.logger;
 
 import io.openleap.iam.principal.service.keycloak.KeycloakService;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
+@Profile("logger")
 @Service
 public class KeycloakLoggerService implements KeycloakService {
     @Override

@@ -12,7 +12,7 @@ import java.util.UUID;
 public record CreateDevicePrincipalCommand(
     String deviceIdentifier,
     DeviceType deviceType,
-    UUID primaryTenantId,
+    UUID defaultTenantId,
     String manufacturer,
     String model,
     String firmwareVersion,

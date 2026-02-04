@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-@Repository
-public interface PrincipalTenantMembershipRepository extends JpaRepository<PrincipalTenantMembershipEntity, UUID> {
+//@Repository
+public interface PrincipalTenantMembershipRepository {//extends JpaRepository<PrincipalTenantMembershipEntity, UUID> {
 
     /**
      * Finds all memberships for a given principal ID.

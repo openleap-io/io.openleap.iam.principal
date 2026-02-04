@@ -8,7 +8,7 @@ import java.util.UUID;
  * Used by the service layer.
  */
 public record UpdateProfileCommand(
-    UUID principalId,
+    UUID id,
     String firstName,
     String lastName,
     String displayName,

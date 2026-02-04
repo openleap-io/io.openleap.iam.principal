@@ -9,7 +9,7 @@ public record CrossTenantPrincipalItem(
     /**
      * Principal ID
      */
-    UUID principalId,
+    UUID id,
 
     /**
      * Principal type (HUMAN, SERVICE, SYSTEM, DEVICE)
@@ -34,6 +34,6 @@ public record CrossTenantPrincipalItem(
     /**
      * Primary tenant ID
      */
-    UUID primaryTenantId
+    UUID defaultTenantId
 ) {
 }

@@ -13,7 +13,7 @@ import java.util.UUID;
 public record CreateSystemPrincipalCommand(
     String systemIdentifier,
     IntegrationType integrationType,
-    UUID primaryTenantId,
+    UUID defaultTenantId,
     String certificateThumbprint,
     Map<String, Object> contextTags,
     List<String> allowedOperations

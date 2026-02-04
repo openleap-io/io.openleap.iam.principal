@@ -2,7 +2,6 @@ package io.openleap.iam.principal.controller.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.Map;
@@ -19,8 +18,7 @@ public class CreateHumanPrincipalRequestDto {
     @Size(max = 255, message = "Email must not exceed 255 characters")
     private String email;
     
-    @NotNull(message = "Primary tenant ID is required")
-    private UUID primaryTenantId;
+    private UUID defaultTenantId;
     
     private Map<String, Object> contextTags;
     
@@ -89,12 +87,12 @@ public class CreateHumanPrincipalRequestDto {
         this.email = email;
     }
     
-    public UUID getPrimaryTenantId() {
-        return primaryTenantId;
+    public UUID getDefaultTenantId() {
+        return defaultTenantId;
     }
     
-    public void setPrimaryTenantId(UUID primaryTenantId) {
-        this.primaryTenantId = primaryTenantId;
+    public void setDefaultTenantId(UUID defaultTenantId) {
+        this.defaultTenantId = defaultTenantId;
     }
     
     public Map<String, Object> getContextTags() {

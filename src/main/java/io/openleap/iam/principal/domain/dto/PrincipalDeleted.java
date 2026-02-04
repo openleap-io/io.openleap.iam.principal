@@ -10,7 +10,7 @@ public record PrincipalDeleted(
     /**
      * Principal ID
      */
-    UUID principalId,
+    UUID id,
 
     /**
      * Whether the principal data was anonymized
