@@ -142,3 +142,12 @@ sequenceDiagram
     note over G: If tenant is not provided the system uses the default tenant for authorization check
     G ->> AuthZ: POST /authz/check + token + resource + action + tenant (if applicable)
 ```
+
+Options on how the tenant is provided in the request:
+
+1. Use header `X-Tenant-ID` to provide the tenant context for the session.
+2. Use custom claim in the JWT token to provide the tenant context for the session.
+   When user - tenant membership is created, iam.tenant can call Keycloak to add custom attribute/claim to the user in
+   Keycloak. This can then be mapped to a custom claim in the JWT token. However, this approach will always place all
+   tenants for the user in the token, and the selection of tenant for the session needs to be done on the Application
+   side.
